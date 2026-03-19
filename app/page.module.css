@@ -1,0 +1,246 @@
+.page {
+  padding: 20px;
+  font-family: Arial, sans-serif;
+  background-color: #0b0b0b;
+  min-height: 100vh;
+  color: #ffffff;
+  box-sizing: border-box;
+}
+
+.title {
+  margin: 0 0 20px 0;
+  font-size: 24px;
+}
+
+.topControls {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1000;
+}
+
+.dateInput {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #cccccc;
+  cursor: pointer;
+  background: #ffffff;
+  color: #000000;
+  min-width: 160px;
+}
+
+.secondaryButton {
+  padding: 10px 14px;
+  background: #444444;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.statusRow {
+  margin-bottom: 20px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+  position: relative;
+  z-index: 1000;
+}
+
+.statusLabel {
+  font-size: 14px;
+  color: #ffffff;
+}
+
+.statusSelect {
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #cccccc;
+  min-width: 260px;
+  background-color: #ffffff;
+  color: #000000;
+  cursor: pointer;
+  max-width: 100%;
+}
+
+.primaryButton {
+  margin-bottom: 20px;
+  padding: 10px 16px;
+  background: #2ecc71;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  z-index: 1000;
+  color: #ffffff;
+  font-size: 16px;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 420px);
+  gap: 20px;
+  align-items: start;
+}
+
+.mapColumn {
+  min-width: 0;
+}
+
+.mapCard {
+  position: relative;
+  z-index: 1;
+  height: clamp(420px, 65vh, 760px);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.sidebar {
+  background-color: #ffffff;
+  color: #000000;
+  border-radius: 12px;
+  padding: 16px;
+  max-height: clamp(420px, 75vh, 900px);
+  overflow-y: auto;
+  position: sticky;
+  top: 20px;
+}
+
+.sidebarTitle {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 22px;
+}
+
+.metaLine {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.orderList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.orderCard {
+  border: 1px solid #dddddd;
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  background-color: #ffffff;
+}
+
+.orderCardSelected {
+  background-color: #e6f7ff;
+}
+
+.orderContent {
+  min-width: 0;
+}
+
+.orderTitle {
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.orderText {
+  margin-top: 4px;
+  word-break: break-word;
+}
+
+.emptyText {
+  margin: 0;
+}
+
+.loadingText {
+  margin: 0;
+}
+
+.errorText {
+  color: #ff6b6b;
+  margin: 0;
+}
+
+@media (max-width: 1100px) {
+  .contentGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  .mapCard {
+    height: clamp(360px, 55vh, 620px);
+  }
+}
+
+@media (max-width: 768px) {
+  .page {
+    padding: 14px;
+  }
+
+  .title {
+    font-size: 20px;
+    margin-bottom: 16px;
+  }
+
+  .topControls,
+  .statusRow {
+    gap: 8px;
+  }
+
+  .dateInput,
+  .statusSelect,
+  .secondaryButton,
+  .primaryButton {
+    width: 100%;
+  }
+
+  .primaryButton {
+    margin-bottom: 16px;
+  }
+
+  .statusLabel {
+    width: 100%;
+  }
+
+  .mapCard {
+    height: 360px;
+  }
+
+  .sidebarTitle {
+    font-size: 18px;
+  }
+
+  .orderCard {
+    padding: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 10px;
+  }
+
+  .mapCard {
+    height: 320px;
+  }
+
+  .metaLine {
+    font-size: 13px;
+  }
+
+  .orderText {
+    font-size: 13px;
+  }
+}

@@ -1,0 +1,160 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Company {
+  id                  String               @id @default(cuid())
+  name                String
+  timezone            String
+  isActive            Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+
+  memberships         Membership[]
+  sessions            Session[]
+  warehouses          Warehouse[]
+  integrations        Integration[]
+  integrationMappings IntegrationMapping[]
+  orders              Order[]
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  fullName     String
+  passwordHash String
+  isActive     Boolean      @default(true)
+  createdAt    DateTime     @default(now())
+
+  memberships  Membership[]
+  sessions     Session[]
+}
+
+model Membership {
+  id         String    @id @default(cuid())
+  userId     String
+  companyId  String
+  role       String
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, companyId])
+  @@index([userId])
+  @@index([companyId])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  token      String   @unique
+  userId     String
+  companyId  String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([companyId])
+  @@index([token])
+}
+
+model Warehouse {
+  id         String    @id @default(cuid())
+  companyId  String
+  name       String
+  city       String
+  address    String
+  latitude   Float?
+  longitude  Float?
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@index([companyId])
+}
+
+model Integration {
+  id                       String               @id @default(cuid())
+  companyId                String
+  name                     String
+  provider                 String
+  baseUrl                  String?
+  credentialsEncryptedJson String
+  isActive                 Boolean              @default(true)
+  createdAt                DateTime             @default(now())
+
+  company                  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  mappings                 IntegrationMapping[]
+  orders                   Order[]
+
+  @@index([companyId])
+}
+
+model IntegrationMapping {
+  id                  String       @id @default(cuid())
+  companyId           String
+  integrationId       String
+  orderStatusMapJson  String
+  deliveryTypeMapJson String
+  warehouseMapJson    String?
+  courierMapJson      String?
+  createdAt           DateTime     @default(now())
+
+  company             Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration         Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([integrationId])
+}
+
+model Order {
+  id                 String       @id @default(cuid())
+  companyId          String
+  integrationId      String?
+  warehouseId        String?
+
+  externalId         String
+  title              String
+
+  status             String
+  deliveryType       String
+
+  address            String
+  latitude           Float?
+  longitude          Float?
+
+  deliveryWindowFrom String?
+  deliveryWindowTo   String?
+
+  courierExternalId  String?
+  courierName        String?
+
+  rawPayloadJson     String?
+
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+
+  company            Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration        Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  warehouse          Warehouse?   @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
+  @@index([companyId])
+  @@index([integrationId])
+  @@index([warehouseId])
+  @@index([externalId])
+  @@unique([companyId, integrationId, externalId])
+}
