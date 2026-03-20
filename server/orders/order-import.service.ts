@@ -73,23 +73,24 @@ export async function importSingleOrderForCompany(params: {
 
   const latitude =
     latitudeRaw === undefined ||
-    latitudeRaw === null ||
-    String(latitudeRaw).trim() === ""
+      latitudeRaw === null ||
+      String(latitudeRaw).trim() === ""
       ? null
       : Number(latitudeRaw);
 
   const longitude =
     longitudeRaw === undefined ||
-    longitudeRaw === null ||
-    String(longitudeRaw).trim() === ""
+      longitudeRaw === null ||
+      String(longitudeRaw).trim() === ""
       ? null
       : Number(longitudeRaw);
 
-  if (!externalId || !title) {
+  if (!externalId || !title || !status || !deliveryType || !address) {
     return {
       success: false,
       externalId: externalId || null,
-      message: "externalId and title are required",
+      message:
+        "externalId, title, status, deliveryType and address are required",
     };
   }
 

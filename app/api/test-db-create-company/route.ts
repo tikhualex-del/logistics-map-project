@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function POST() {
+  throw new Error("Endpoint disabled");
   try {
     const company = await prisma.company.create({
       data: {

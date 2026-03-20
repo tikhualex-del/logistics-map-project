@@ -1,46 +1,69 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/server/auth/require-session";
+import { retailCrmGet } from "@/server/integrations/retailcrm-client.service";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const baseUrl = process.env.RETAILCRM_BASE_URL;
-    const apiKey = process.env.RETAILCRM_API_KEY;
+    const session = await requireSession();
 
-    if (!baseUrl) {
+    const { searchParams } = new URL(request.url);
+    const integrationId = String(searchParams.get("integrationId") || "").trim();
+
+    if (!integrationId) {
       return NextResponse.json(
-        { success: false, error: "Не задан RETAILCRM_BASE_URL" },
-        { status: 500 }
+        {
+          success: false,
+          error: "integrationId is required",
+        },
+        { status: 400 }
       );
     }
 
-    if (!apiKey) {
-      return NextResponse.json(
-        { success: false, error: "Не задан RETAILCRM_API_KEY" },
-        { status: 500 }
-      );
-    }
-
-    const url = `${baseUrl}/api/v5/orders?apiKey=${apiKey}&limit=20`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
+    const result = await retailCrmGet({
+      companyId: session.companyId,
+      integrationId,
+      path: "/api/v5/orders",
+      searchParams: {
+        limit: 20,
+      },
     });
-
-    const data = await response.json();
 
     return NextResponse.json({
       success: true,
-      status: response.status,
-      retailcrmResponse: data,
+      status: result.status,
+      integration: result.integration,
+      retailcrmResponse: result.data,
     });
   } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Unknown error";
+
+    const status =
+      message === "Not authenticated"
+        ? 401
+        : message === "RetailCRM integration not found in current company"
+          ? 404
+          : message === "RetailCRM integration baseUrl is not set"
+            ? 400
+            : message === "Failed to decrypt integration credentials"
+              ? 500
+              : message === "Integration credentials are not valid JSON"
+                ? 500
+                : message === "RetailCRM apiKey is missing in integration credentials"
+                  ? 400
+                  : message === "RetailCRM returned non-JSON response"
+                    ? 502
+                    : message === "RetailCRM request timeout"
+                      ? 504
+                      : 500;
+
     return NextResponse.json(
       {
         success: false,
         error: "Ошибка при запросе в RetailCRM",
-        details: error instanceof Error ? error.message : "Unknown error",
+        details: message,
       },
-      { status: 500 }
+      { status }
     );
   }
 }

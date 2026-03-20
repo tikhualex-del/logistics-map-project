@@ -1,28 +1,14 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { getCurrentSessionWithCompany } from "@/server/auth/auth.service";
+import { requireSession } from "@/server/auth/require-session";
 import {
   createWarehouse,
   getWarehousesByCompanyId,
 } from "@/server/warehouses/warehouses.service";
+import { requireMinRole } from "@/server/auth/require-role";
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("session_token")?.value;
-
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Not authenticated",
-        },
-        { status: 401 }
-      );
-    }
-
-    const session = await getCurrentSessionWithCompany(sessionToken);
-
+    const session = await requireSession();
     const warehouses = await getWarehousesByCompanyId(session.companyId);
 
     return NextResponse.json({
@@ -35,32 +21,22 @@ export async function GET() {
     const message =
       error instanceof Error ? error.message : "Failed to load warehouses";
 
+    const status = message === "Not authenticated" ? 401 : 500;
+
     return NextResponse.json(
       {
         success: false,
         message,
       },
-      { status: 401 }
+      { status }
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("session_token")?.value;
-
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Not authenticated",
-        },
-        { status: 401 }
-      );
-    }
-
-    const session = await getCurrentSessionWithCompany(sessionToken);
+    const session = await requireSession();
+    requireMinRole(session, "admin");
     const body = await request.json();
 
     const name = String(body.name || "").trim();
@@ -120,12 +96,19 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error ? error.message : "Failed to create warehouse";
 
+    const status =
+      message === "Not authenticated"
+        ? 401
+        : message === "Forbidden"
+          ? 403
+          : 400;
+
     return NextResponse.json(
       {
         success: false,
         message,
       },
-      { status: 400 }
+      { status }
     );
   }
 }

@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireSession } from "@/server/auth/require-session";
+import { retailCrmGet } from "@/server/integrations/retailcrm-client.service";
 
 const geoCache = new Map<string, [number, number]>();
 
@@ -79,31 +81,34 @@ async function geocodeAddress(address: string): Promise<{
   }
 }
 
-async function loadAllOrdersFromRetailCRM(
-  baseUrl: string,
-  apiKey: string,
-  deliveryDate: string | null
-) {
+async function loadAllOrdersFromRetailCRM(params: {
+  companyId: string;
+  integrationId: string;
+  deliveryDate: string | null;
+}) {
+  const { companyId, integrationId, deliveryDate } = params;
+
   const allOrders: any[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    let url = `${baseUrl}/api/v5/orders?apiKey=${apiKey}&limit=100&page=${page}`;
-
-    if (deliveryDate) {
-      url += `&filter[deliveryDateFrom]=${deliveryDate}&filter[deliveryDateTo]=${deliveryDate}`;
-    }
-
-    const response = await fetch(url, {
-      method: "GET",
-      cache: "no-store",
+    const result = await retailCrmGet({
+      companyId,
+      integrationId,
+      path: "/api/v5/orders",
+      searchParams: {
+        limit: 100,
+        page,
+        "filter[deliveryDateFrom]": deliveryDate,
+        "filter[deliveryDateTo]": deliveryDate,
+      },
     });
 
-    const data = await response.json();
+    const data = result.data;
 
-    if (!data.success) {
-      throw new Error(data.errorMsg || "RetailCRM returned an error");
+    if (!data?.success) {
+      throw new Error(data?.errorMsg || "RetailCRM returned an error");
     }
 
     allOrders.push(...(data.orders || []));
@@ -117,18 +122,15 @@ async function loadAllOrdersFromRetailCRM(
 
 export async function GET(request: Request) {
   try {
-    const baseUrl = process.env.RETAILCRM_BASE_URL;
-    const apiKey = process.env.RETAILCRM_API_KEY;
-
-    if (!baseUrl || !apiKey) {
-      return NextResponse.json({
-        success: false,
-        error: "RetailCRM env variables not set",
-      });
-    }
+    const session = await requireSession();
 
     const { searchParams } = new URL(request.url);
     const deliveryDate = searchParams.get("deliveryDate");
+
+    const integrationId =
+      String(searchParams.get("integrationId") || "").trim() ||
+      "cmmxwyhfd0002oww6qz0yfgw9";
+
     if (!deliveryDate) {
       return NextResponse.json({
         success: true,
@@ -137,11 +139,11 @@ export async function GET(request: Request) {
       });
     }
 
-    const retailOrders = await loadAllOrdersFromRetailCRM(
-      baseUrl,
-      apiKey,
-      deliveryDate
-    );
+    const retailOrders = await loadAllOrdersFromRetailCRM({
+      companyId: session.companyId,
+      integrationId,
+      deliveryDate,
+    });
 
     const orders = await Promise.all(
       retailOrders.map(async (order: any) => {
@@ -175,15 +177,8 @@ export async function GET(request: Request) {
             : address?.street || null;
 
         const buildingPart = address?.building ? `д. ${address.building}` : null;
-
-        // В твоём RetailCRM строение приходит в поле house
-        const structurePart =
-          address?.house ? `стр. ${address.house}` : null;
-
-        // В твоём RetailCRM подъезд приходит в поле block
-        const entrancePart =
-          address?.block ? `под. ${address.block}` : null;
-
+        const structurePart = address?.house ? `стр. ${address.house}` : null;
+        const entrancePart = address?.block ? `под. ${address.block}` : null;
         const housingPart = address?.housing ? `корп. ${address.housing}` : null;
         const flatPart = address?.flat ? `кв. ${address.flat}` : null;
         const floorPart = address?.floor ? `эт. ${address.floor}` : null;
@@ -253,10 +248,35 @@ export async function GET(request: Request) {
       orders: filteredOrders,
     });
   } catch (error) {
-    return NextResponse.json({
-      success: false,
-      error: "Ошибка запроса к RetailCRM",
-      details: error instanceof Error ? error.message : "Unknown error",
-    });
+    const message =
+      error instanceof Error ? error.message : "Unknown error";
+
+    const status =
+      message === "Not authenticated"
+        ? 401
+        : message === "RetailCRM integration not found in current company"
+          ? 404
+          : message === "RetailCRM integration baseUrl is not set"
+            ? 400
+            : message === "Failed to decrypt integration credentials"
+              ? 500
+              : message === "Integration credentials are not valid JSON"
+                ? 500
+                : message === "RetailCRM apiKey is missing in integration credentials"
+                  ? 400
+                  : message === "RetailCRM returned non-JSON response"
+                    ? 502
+                    : message === "RetailCRM request timeout"
+                      ? 504
+                      : 500;
+
+    return NextResponse.json(
+      {
+        success: false,
+        error: "Ошибка запроса к RetailCRM",
+        details: message,
+      },
+      { status }
+    );
   }
 }

@@ -95,6 +95,7 @@ model Integration {
   baseUrl                  String?
   credentialsEncryptedJson String
   isActive                 Boolean              @default(true)
+  isDefault                Boolean              @default(false)
   createdAt                DateTime             @default(now())
 
   company                  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)

@@ -1,24 +1,34 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { getCurrentSessionWithCompany } from "@/server/auth/auth.service";
+import { requireSession } from "@/server/auth/require-session";
 import { createOrder, getOrdersByCompanyId } from "@/server/orders/orders.service";
+import { requireMinRole } from "@/server/auth/require-role";
+import { z } from "zod";
+
+const createOrderSchema = z.object({
+  integrationId: z.string().nullable().optional(),
+  warehouseId: z.string().nullable().optional(),
+
+  externalId: z.string().min(1),
+  title: z.string().min(1),
+  status: z.string().min(1),
+  deliveryType: z.string().min(1),
+  address: z.string().min(1),
+
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
+
+  deliveryWindowFrom: z.string().nullable().optional(),
+  deliveryWindowTo: z.string().nullable().optional(),
+
+  courierExternalId: z.string().nullable().optional(),
+  courierName: z.string().nullable().optional(),
+
+  rawPayloadJson: z.string().nullable().optional(),
+});
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("session_token")?.value;
-
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Not authenticated",
-        },
-        { status: 401 }
-      );
-    }
-
-    const session = await getCurrentSessionWithCompany(sessionToken);
+    const session = await requireSession();
     const orders = await getOrdersByCompanyId(session.companyId);
 
     return NextResponse.json({
@@ -31,64 +41,57 @@ export async function GET() {
     const message =
       error instanceof Error ? error.message : "Failed to load orders";
 
+    const status = message === "Not authenticated" ? 401 : 500;
+
     return NextResponse.json(
       {
         success: false,
         message,
       },
-      { status: 401 }
+      { status }
     );
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("session_token")?.value;
+    const session = await requireSession();
+    requireMinRole(session, "dispatcher");
+    const body = await request.json();
 
-    if (!sessionToken) {
+    const parsed = createOrderSchema.safeParse(body);
+
+    if (!parsed.success) {
       return NextResponse.json(
         {
           success: false,
-          message: "Not authenticated",
+          message: "Invalid request data",
+          errors: parsed.error.flatten(),
         },
-        { status: 401 }
+        { status: 400 }
       );
     }
 
-    const session = await getCurrentSessionWithCompany(sessionToken);
-    const body = await request.json();
+    const data = parsed.data;
 
-    const integrationId = String(body.integrationId || "").trim() || null;
-    const warehouseId = String(body.warehouseId || "").trim() || null;
+    const integrationId = data.integrationId || null;
+    const warehouseId = data.warehouseId || null;
 
-    const externalId = String(body.externalId || "").trim();
-    const title = String(body.title || "").trim();
-    const status = String(body.status || "").trim();
-    const deliveryType = String(body.deliveryType || "").trim();
-    const address = String(body.address || "").trim();
+    const externalId = data.externalId;;
+    const title = data.title;
+    const status = data.status;
+    const deliveryType = data.deliveryType;
+    const address = data.address;
 
-    const latitude =
-      body.latitude === undefined || body.latitude === null || body.latitude === ""
-        ? null
-        : Number(body.latitude);
+    const latitude = data.latitude ?? null;
 
-    const longitude =
-      body.longitude === undefined || body.longitude === null || body.longitude === ""
-        ? null
-        : Number(body.longitude);
+    const longitude = data.longitude ?? null;
 
-    const deliveryWindowFrom =
-      String(body.deliveryWindowFrom || "").trim() || null;
-    const deliveryWindowTo =
-      String(body.deliveryWindowTo || "").trim() || null;
-    const courierExternalId =
-      String(body.courierExternalId || "").trim() || null;
-    const courierName = String(body.courierName || "").trim() || null;
-    const rawPayloadJson =
-      body.rawPayloadJson === undefined || body.rawPayloadJson === null
-        ? null
-        : String(body.rawPayloadJson);
+    const deliveryWindowFrom = data.deliveryWindowFrom || null;
+    const deliveryWindowTo = data.deliveryWindowTo || null;
+    const courierExternalId = data.courierExternalId || null;
+    const courierName = data.courierName || null;
+    const rawPayloadJson = data.rawPayloadJson || null;
 
     if (!externalId || !title || !status || !deliveryType || !address) {
       return NextResponse.json(
@@ -143,12 +146,19 @@ export async function POST(request: Request) {
     const message =
       error instanceof Error ? error.message : "Failed to create order";
 
+    const status =
+      message === "Not authenticated"
+        ? 401
+        : message === "Forbidden"
+          ? 403
+          : 400;
+
     return NextResponse.json(
       {
         success: false,
         message,
       },
-      { status: 400 }
+      { status }
     );
   }
 }

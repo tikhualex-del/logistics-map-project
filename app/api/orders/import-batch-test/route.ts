@@ -1,27 +1,15 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { getCurrentSessionWithCompany } from "@/server/auth/auth.service";
+import { requireSession } from "@/server/auth/require-session";
 import {
   ExternalImportOrderInput,
   importBatchOrdersForCompany,
 } from "@/server/orders/order-import.service";
+import { requireMinRole } from "@/server/auth/require-role";
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("session_token")?.value;
-
-    if (!sessionToken) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Not authenticated",
-        },
-        { status: 401 }
-      );
-    }
-
-    const session = await getCurrentSessionWithCompany(sessionToken);
+    const session = await requireSession();
+    requireMinRole(session, "dispatcher");
     const body = await request.json();
 
     const integrationId = String(body.integrationId || "").trim();
@@ -47,6 +35,31 @@ export async function POST(request: Request) {
       );
     }
 
+    const hasInvalidOrder = orders.some((order) => {
+      if (!order || typeof order !== "object") {
+        return true;
+      }
+
+      const externalId = String((order as any).externalId || "").trim();
+      const title = String((order as any).title || "").trim();
+      const status = String((order as any).status || "").trim();
+      const deliveryType = String((order as any).deliveryType || "").trim();
+      const address = String((order as any).address || "").trim();
+
+      return !externalId || !title || !status || !deliveryType || !address;
+    });
+
+    if (hasInvalidOrder) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Each order must contain externalId, title, status, deliveryType and address",
+        },
+        { status: 400 }
+      );
+    }
+
     const result = await importBatchOrdersForCompany({
       companyId: session.companyId,
       integrationId,
@@ -66,10 +79,14 @@ export async function POST(request: Request) {
       error instanceof Error ? error.message : "Failed to import batch orders";
 
     const status =
-      message === "Integration not found in current company" ||
-      message === "Integration mapping not found for current company"
-        ? 404
-        : 500;
+      message === "Not authenticated"
+        ? 401
+        : message === "Forbidden"
+          ? 403
+          : message === "Integration not found in current company" ||
+            message === "Integration mapping not found for current company"
+            ? 404
+            : 500;
 
     return NextResponse.json(
       {

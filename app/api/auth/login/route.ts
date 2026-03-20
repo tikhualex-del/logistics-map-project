@@ -23,11 +23,15 @@ export async function POST(request: Request) {
 
     const cookieStore = await cookies();
 
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
     cookieStore.set("session_token", result.sessionToken, {
       httpOnly: true,
-      secure: false, // потом поменяем на true в проде
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
+      expires: expiresAt,
     });
 
     return NextResponse.json({

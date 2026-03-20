@@ -111,9 +111,28 @@ export async function createOwnerBundle(input: CreateOwnerBundleInput) {
         });
 
         return {
-            company,
-            user,
-            membership,
+            company: {
+                id: company.id,
+                name: company.name,
+                timezone: company.timezone,
+                isActive: company.isActive,
+                createdAt: company.createdAt,
+            },
+            user: {
+                id: user.id,
+                email: user.email,
+                fullName: user.fullName,
+                isActive: user.isActive,
+                createdAt: user.createdAt,
+            },
+            membership: {
+                id: membership.id,
+                userId: membership.userId,
+                companyId: membership.companyId,
+                role: membership.role,
+                isActive: membership.isActive,
+                createdAt: membership.createdAt,
+            },
         };
     });
 }

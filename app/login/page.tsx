@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const router = useRouter();
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -42,9 +44,16 @@ export default function LoginPage() {
         return;
       }
 
-      setSuccessMessage("Вход выполнен успешно");
+      // сохраняем auth (временно)
+      localStorage.setItem("auth", "true");
 
-      console.log("USER DATA:", data.data);
+      // если есть userId или token — лучше сохранить
+      if (data.data?.user?.id) {
+        localStorage.setItem("userId", String(data.data.user.id));
+      }
+
+      // редирект на карту
+      router.push("/map");
     } catch {
       setError("Ошибка сети или сервера");
     } finally {

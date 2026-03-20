@@ -13,7 +13,7 @@ export async function POST() {
 
     cookieStore.set("session_token", "", {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
       expires: new Date(0),

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { requireAuth } from "@/server/auth/requireAuth";
 
 type IncomingOrder = {
   id: number;
@@ -67,19 +68,22 @@ async function getGigaChatAccessToken() {
 
   const rqUid = crypto.randomUUID();
 
-  const response = await fetch("https://ngw.devices.sberbank.ru:9443/api/v2/oauth", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-      Accept: "application/json",
-      RqUID: rqUid,
-      Authorization: `Basic ${authKey}`,
-    },
-    body: new URLSearchParams({
-      scope,
-    }).toString(),
-    cache: "no-store",
-  });
+  const response = await fetch(
+    "https://ngw.devices.sberbank.ru:9443/api/v2/oauth",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        Accept: "application/json",
+        RqUID: rqUid,
+        Authorization: `Basic ${authKey}`,
+      },
+      body: new URLSearchParams({
+        scope,
+      }).toString(),
+      cache: "no-store",
+    }
+  );
 
   const data = await response.json();
 
@@ -101,6 +105,19 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    let session;
+
+    try {
+      session = await requireAuth();
+    } catch {
+      return NextResponse.json(
+        { success: false, message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
+    console.log("AI REQUEST FROM COMPANY:", session.companyId);
+
     const body = await req.json();
 
     const prompt = String(body?.prompt || "").trim();
@@ -191,7 +208,7 @@ export async function POST(req: NextRequest) {
 - если есть ранние окна доставки, это усиливает выбор режима sla
 
 Ничего не выдумывай сверх запроса логиста и переданного контекста.
-`.trim();
+    `.trim();
 
     const completionResponse = await fetch(
       "https://gigachat.devices.sberbank.ru/api/v1/chat/completions",
