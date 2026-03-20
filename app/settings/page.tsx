@@ -625,916 +625,220 @@ export default function SettingsPage() {
           </div>
         ) : companyData ? (
           <>
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "12px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Компания
-              </div>
-
-              <div style={{ fontSize: "14px", color: "#374151" }}>
-                <strong>Название:</strong> {companyData.company.name}
-              </div>
-
-              <div style={{ fontSize: "14px", color: "#374151" }}>
-                <strong>Таймзона:</strong> {companyData.company.timezone}
-              </div>
-
-              <div style={{ fontSize: "14px", color: "#374151" }}>
-                <strong>Пользователь:</strong> {companyData.user.fullName} (
-                {companyData.user.email})
-              </div>
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Склады
-              </div>
-
-              {warehousesLoading ? (
-                <div style={{ fontSize: "14px", color: "#4b5563" }}>
-                  Загрузка складов...
-                </div>
-              ) : warehouses.length === 0 ? (
-                <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                  Складов пока нет
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "12px",
-                  }}
-                >
-                  {warehouses.map((warehouse) => (
-                    <div
-                      key={warehouse.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "14px",
-                        padding: "16px",
-                        background: "#f9fafb",
-                        display: "grid",
-                        gap: "8px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#111827",
-                        }}
-                      >
-                        {warehouse.name}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Город:</strong> {warehouse.city}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Адрес:</strong> {warehouse.address}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Координаты:</strong>{" "}
-                        {warehouse.latitude !== null &&
-                          warehouse.longitude !== null
-                          ? `${warehouse.latitude}, ${warehouse.longitude}`
-                          : "не указаны"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Интеграции
-              </div>
-
-              {integrationsLoading ? (
-                <div style={{ fontSize: "14px", color: "#4b5563" }}>
-                  Загрузка интеграций...
-                </div>
-              ) : integrations.length === 0 ? (
-                <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                  Интеграций пока нет
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "12px",
-                  }}
-                >
-                  {integrations.map((integration) => (
-                    <div
-                      key={integration.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "14px",
-                        padding: "16px",
-                        background: "#f9fafb",
-                        display: "grid",
-                        gap: "8px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#111827",
-                        }}
-                      >
-                        {integration.name}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Provider:</strong> {integration.provider}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Base URL:</strong> {integration.baseUrl || "не указан"}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "#374151",
-                          wordBreak: "break-all",
-                        }}
-                      >
-                        <strong>Credentials JSON:</strong>{" "}
-                        {integration.credentialsEncryptedJson}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Добавить интеграцию
-              </div>
-
-              <form
-                onSubmit={handleCreateIntegration}
-                style={{ display: "grid", gap: "14px" }}
-              >
-                <input
-                  type="text"
-                  value={integrationName}
-                  onChange={(e) => setIntegrationName(e.target.value)}
-                  placeholder="Название интеграции"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={integrationProvider}
-                  onChange={(e) => setIntegrationProvider(e.target.value)}
-                  placeholder="Provider, например retailcrm"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={integrationBaseUrl}
-                  onChange={(e) => setIntegrationBaseUrl(e.target.value)}
-                  placeholder="Base URL (необязательно)"
-                  style={inputStyle}
-                />
-
-                <textarea
-                  value={integrationCredentials}
-                  onChange={(e) => setIntegrationCredentials(e.target.value)}
-                  placeholder='credentialsEncryptedJson, например {"apiKey":"test-key"}'
-                  style={{
-                    minHeight: "120px",
-                    borderRadius: "12px",
-                    border: "1px solid #d1d5db",
-                    padding: "12px",
-                    fontSize: "14px",
-                    outline: "none",
-                    color: "#111827",
-                    background: "#ffffff",
-                    WebkitTextFillColor: "#111827",
-                    resize: "vertical",
-                  }}
-                />
-
-
-                {integrationFormError ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#b91c1c",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {integrationFormError}
-                  </div>
-                ) : null}
-
-                {integrationFormSuccess ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#ecfdf5",
-                      border: "1px solid #bbf7d0",
-                      color: "#166534",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {integrationFormSuccess}
-                  </div>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={integrationCreateLoading}
-                  style={{
-                    height: "46px",
-                    border: "none",
-                    borderRadius: "12px",
-                    background: integrationCreateLoading ? "#93c5fd" : "#2563eb",
-                    color: "#ffffff",
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    cursor: integrationCreateLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {integrationCreateLoading ? "Создание..." : "Добавить интеграцию"}
-                </button>
-              </form>
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Integration mappings
-              </div>
-
-              {mappingsLoading ? (
-                <div style={{ fontSize: "14px", color: "#4b5563" }}>
-                  Загрузка mappings...
-                </div>
-              ) : mappings.length === 0 ? (
-                <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                  Mappings пока нет
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "12px",
-                  }}
-                >
-                  {mappings.map((mapping) => (
-                    <div
-                      key={mapping.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "14px",
-                        padding: "16px",
-                        background: "#f9fafb",
-                        display: "grid",
-                        gap: "8px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#111827",
-                        }}
-                      >
-                        {mapping.integration.name}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Provider:</strong> {mapping.integration.provider}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "#374151",
-                          wordBreak: "break-word",
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        <strong>orderStatusMapJson:</strong>{" "}
-                        {mapping.orderStatusMapJson}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "#374151",
-                          wordBreak: "break-word",
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        <strong>deliveryTypeMapJson:</strong>{" "}
-                        {mapping.deliveryTypeMapJson}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "#374151",
-                          wordBreak: "break-word",
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        <strong>warehouseMapJson:</strong>{" "}
-                        {mapping.warehouseMapJson || "не указан"}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          color: "#374151",
-                          wordBreak: "break-word",
-                          whiteSpace: "pre-wrap",
-                        }}
-                      >
-                        <strong>courierMapJson:</strong>{" "}
-                        {mapping.courierMapJson || "не указан"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Добавить mapping
-              </div>
-
-              <form
-                onSubmit={handleCreateMapping}
-                style={{ display: "grid", gap: "14px" }}
-              >
-                <select
-                  value={mappingIntegrationId}
-                  onChange={(e) => setMappingIntegrationId(e.target.value)}
-                  style={{
-                    ...inputStyle,
-                    appearance: "none",
-                    WebkitAppearance: "none",
-                    MozAppearance: "none",
-                  }}
-                >
-                  <option value="">Выбери интеграцию</option>
-                  {integrations.map((integration) => (
-                    <option key={integration.id} value={integration.id}>
-                      {integration.name} ({integration.provider})
-                    </option>
-                  ))}
-                </select>
-
-                <textarea
-                  value={orderStatusMapJson}
-                  onChange={(e) => setOrderStatusMapJson(e.target.value)}
-                  placeholder='orderStatusMapJson, например {"new_order":"new","done":"complete"}'
-                  style={textareaStyle}
-                />
-
-                <textarea
-                  value={deliveryTypeMapJson}
-                  onChange={(e) => setDeliveryTypeMapJson(e.target.value)}
-                  placeholder='deliveryTypeMapJson, например {"planned_delivery":"planned","express_delivery":"express"}'
-                  style={textareaStyle}
-                />
-
-                <textarea
-                  value={warehouseMapJson}
-                  onChange={(e) => setWarehouseMapJson(e.target.value)}
-                  placeholder='warehouseMapJson (необязательно)'
-                  style={textareaStyle}
-                />
-
-                <textarea
-                  value={courierMapJson}
-                  onChange={(e) => setCourierMapJson(e.target.value)}
-                  placeholder='courierMapJson (необязательно)'
-                  style={textareaStyle}
-                />
-
-                {mappingFormError ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#b91c1c",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {mappingFormError}
-                  </div>
-                ) : null}
-
-                {mappingFormSuccess ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#ecfdf5",
-                      border: "1px solid #bbf7d0",
-                      color: "#166534",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {mappingFormSuccess}
-                  </div>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={mappingCreateLoading}
-                  style={{
-                    height: "46px",
-                    border: "none",
-                    borderRadius: "12px",
-                    background: mappingCreateLoading ? "#93c5fd" : "#2563eb",
-                    color: "#ffffff",
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    cursor: mappingCreateLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {mappingCreateLoading ? "Создание..." : "Добавить mapping"}
-                </button>
-              </form>
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Заказы
-              </div>
-
-              {ordersLoading ? (
-                <div style={{ fontSize: "14px", color: "#4b5563" }}>
-                  Загрузка заказов...
-                </div>
-              ) : orders.length === 0 ? (
-                <div style={{ fontSize: "14px", color: "#6b7280" }}>
-                  Заказов пока нет
-                </div>
-              ) : (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: "12px",
-                  }}
-                >
-                  {orders.map((order) => (
-                    <div
-                      key={order.id}
-                      style={{
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "14px",
-                        padding: "16px",
-                        background: "#f9fafb",
-                        display: "grid",
-                        gap: "8px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          fontSize: "15px",
-                          fontWeight: 700,
-                          color: "#111827",
-                        }}
-                      >
-                        {order.title}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>External ID:</strong> {order.externalId}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Status:</strong> {order.status}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Delivery type:</strong> {order.deliveryType}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Address:</strong> {order.address}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Window:</strong>{" "}
-                        {order.deliveryWindowFrom || order.deliveryWindowTo
-                          ? `${order.deliveryWindowFrom || "?"} - ${order.deliveryWindowTo || "?"}`
-                          : "не указано"}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Coordinates:</strong>{" "}
-                        {order.latitude !== null && order.longitude !== null
-                          ? `${order.latitude}, ${order.longitude}`
-                          : "не указаны"}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Warehouse:</strong> {order.warehouse?.name || "не привязан"}
-                      </div>
-
-                      <div style={{ fontSize: "14px", color: "#374151" }}>
-                        <strong>Integration:</strong> {order.integration?.name || "не привязан"}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Добавить заказ
-              </div>
-
-              <form
-                onSubmit={handleCreateOrder}
-                style={{ display: "grid", gap: "14px" }}
-              >
-                <input
-                  type="text"
-                  value={orderExternalId}
-                  onChange={(e) => setOrderExternalId(e.target.value)}
-                  placeholder="External ID"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderTitle}
-                  onChange={(e) => setOrderTitle(e.target.value)}
-                  placeholder="Название заказа"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderStatus}
-                  onChange={(e) => setOrderStatus(e.target.value)}
-                  placeholder="Status, например new"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderDeliveryType}
-                  onChange={(e) => setOrderDeliveryType(e.target.value)}
-                  placeholder="Delivery type, например planned"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderAddress}
-                  onChange={(e) => setOrderAddress(e.target.value)}
-                  placeholder="Адрес"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderLatitude}
-                  onChange={(e) => setOrderLatitude(e.target.value)}
-                  placeholder="Latitude (необязательно)"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderLongitude}
-                  onChange={(e) => setOrderLongitude(e.target.value)}
-                  placeholder="Longitude (необязательно)"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderDeliveryWindowFrom}
-                  onChange={(e) => setOrderDeliveryWindowFrom(e.target.value)}
-                  placeholder="Delivery window from, например 10:00"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={orderDeliveryWindowTo}
-                  onChange={(e) => setOrderDeliveryWindowTo(e.target.value)}
-                  placeholder="Delivery window to, например 14:00"
-                  style={inputStyle}
-                />
-
-                {orderFormError ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#b91c1c",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {orderFormError}
-                  </div>
-                ) : null}
-
-                {orderFormSuccess ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#ecfdf5",
-                      border: "1px solid #bbf7d0",
-                      color: "#166534",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {orderFormSuccess}
-                  </div>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={orderCreateLoading}
-                  style={{
-                    height: "46px",
-                    border: "none",
-                    borderRadius: "12px",
-                    background: orderCreateLoading ? "#93c5fd" : "#2563eb",
-                    color: "#ffffff",
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    cursor: orderCreateLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {orderCreateLoading ? "Создание..." : "Добавить заказ"}
-                </button>
-              </form>
-            </div>
-
-            <div
-              style={{
-                background: "#ffffff",
-                border: "1px solid #e5e7eb",
-                borderRadius: "18px",
-                padding: "24px",
-                display: "grid",
-                gap: "16px",
-                boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "18px",
-                  fontWeight: 800,
-                  color: "#111827",
-                }}
-              >
-                Добавить склад
-              </div>
-
-              <form
-                onSubmit={handleCreateWarehouse}
-                style={{ display: "grid", gap: "14px" }}
-              >
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Название склада"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={city}
-                  onChange={(e) => setCity(e.target.value)}
-                  placeholder="Город"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={address}
-                  onChange={(e) => setAddress(e.target.value)}
-                  placeholder="Адрес"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={latitude}
-                  onChange={(e) => setLatitude(e.target.value)}
-                  placeholder="Latitude (необязательно)"
-                  style={inputStyle}
-                />
-
-                <input
-                  type="text"
-                  value={longitude}
-                  onChange={(e) => setLongitude(e.target.value)}
-                  placeholder="Longitude (необязательно)"
-                  style={inputStyle}
-                />
-
-                {formError ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#fef2f2",
-                      border: "1px solid #fecaca",
-                      color: "#b91c1c",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {formError}
-                  </div>
-                ) : null}
-
-                {formSuccess ? (
-                  <div
-                    style={{
-                      borderRadius: "12px",
-                      background: "#ecfdf5",
-                      border: "1px solid #bbf7d0",
-                      color: "#166534",
-                      padding: "12px",
-                      fontSize: "14px",
-                    }}
-                  >
-                    {formSuccess}
-                  </div>
-                ) : null}
-
-                <button
-                  type="submit"
-                  disabled={createLoading}
-                  style={{
-                    height: "46px",
-                    border: "none",
-                    borderRadius: "12px",
-                    background: createLoading ? "#93c5fd" : "#2563eb",
-                    color: "#ffffff",
-                    fontSize: "15px",
-                    fontWeight: 700,
-                    cursor: createLoading ? "not-allowed" : "pointer",
-                  }}
-                >
-                  {createLoading ? "Создание..." : "Добавить склад"}
-                </button>
-              </form>
-            </div>
-          </>
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: "18px",
+      padding: "24px",
+      display: "grid",
+      gap: "12px",
+      boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "18px",
+        fontWeight: 800,
+        color: "#111827",
+      }}
+    >
+      Компания
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#374151" }}>
+      <strong>Название:</strong> {companyData.company.name}
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#374151" }}>
+      <strong>Таймзона:</strong> {companyData.company.timezone}
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#374151" }}>
+      <strong>Пользователь:</strong> {companyData.user.fullName} ({companyData.user.email})
+    </div>
+  </div>
+
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: "18px",
+      padding: "24px",
+      display: "grid",
+      gap: "16px",
+      boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "18px",
+        fontWeight: 800,
+        color: "#111827",
+      }}
+    >
+      Склады
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#4b5563" }}>
+      Управление складами вынесено в отдельный раздел.
+    </div>
+
+    <button
+      type="button"
+      onClick={() => router.push("/settings/warehouses")}
+      style={{
+        height: "44px",
+        border: "none",
+        borderRadius: "12px",
+        background: "#2563eb",
+        color: "#ffffff",
+        fontSize: "14px",
+        fontWeight: 700,
+        cursor: "pointer",
+        width: "fit-content",
+        padding: "0 16px",
+      }}
+    >
+      Открыть склады
+    </button>
+  </div>
+
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: "18px",
+      padding: "24px",
+      display: "grid",
+      gap: "16px",
+      boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "18px",
+        fontWeight: 800,
+        color: "#111827",
+      }}
+    >
+      Интеграции
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#4b5563" }}>
+      Управление интеграциями вынесено в отдельный раздел.
+    </div>
+
+    <button
+      type="button"
+      onClick={() => router.push("/settings/integrations")}
+      style={{
+        height: "44px",
+        border: "none",
+        borderRadius: "12px",
+        background: "#2563eb",
+        color: "#ffffff",
+        fontSize: "14px",
+        fontWeight: 700,
+        cursor: "pointer",
+        width: "fit-content",
+        padding: "0 16px",
+      }}
+    >
+      Открыть интеграции
+    </button>
+  </div>
+
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: "18px",
+      padding: "24px",
+      display: "grid",
+      gap: "16px",
+      boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "18px",
+        fontWeight: 800,
+        color: "#111827",
+      }}
+    >
+      Integration mappings
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#4b5563" }}>
+      Управление mappings вынесено в отдельный раздел.
+    </div>
+
+    <button
+      type="button"
+      onClick={() => router.push("/settings/mappings")}
+      style={{
+        height: "44px",
+        border: "none",
+        borderRadius: "12px",
+        background: "#2563eb",
+        color: "#ffffff",
+        fontSize: "14px",
+        fontWeight: 700,
+        cursor: "pointer",
+        width: "fit-content",
+        padding: "0 16px",
+      }}
+    >
+      Открыть mappings
+    </button>
+  </div>
+
+  <div
+    style={{
+      background: "#ffffff",
+      border: "1px solid #e5e7eb",
+      borderRadius: "18px",
+      padding: "24px",
+      display: "grid",
+      gap: "16px",
+      boxShadow: "0 12px 30px rgba(15,23,42,0.06)",
+    }}
+  >
+    <div
+      style={{
+        fontSize: "18px",
+        fontWeight: 800,
+        color: "#111827",
+      }}
+    >
+      Заказы
+    </div>
+
+    <div style={{ fontSize: "14px", color: "#4b5563" }}>
+      Управление заказами вынесено в отдельный раздел.
+    </div>
+
+    <button
+      type="button"
+      onClick={() => router.push("/settings/orders")}
+      style={{
+        height: "44px",
+        border: "none",
+        borderRadius: "12px",
+        background: "#2563eb",
+        color: "#ffffff",
+        fontSize: "14px",
+        fontWeight: 700,
+        cursor: "pointer",
+        width: "fit-content",
+        padding: "0 16px",
+      }}
+    >
+      Открыть заказы
+    </button>
+  </div>
+</>
         ) : null}
       </div>
     </main>

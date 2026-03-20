@@ -16,6 +16,7 @@ const safeIntegrationSelect = {
   provider: true,
   baseUrl: true,
   isActive: true,
+  isDefault: true,
   createdAt: true,
 } as const;
 
@@ -72,4 +73,50 @@ export async function getDefaultIntegrationByProvider(
       createdAt: "desc",
     },
   });
+}
+
+export async function setDefaultIntegration(params: {
+  companyId: string;
+  integrationId: string;
+}) {
+  const { companyId, integrationId } = params;
+
+  const integration = await prisma.integration.findFirst({
+    where: {
+      id: integrationId,
+      companyId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      companyId: true,
+      provider: true,
+    },
+  });
+
+  if (!integration) {
+    throw new Error("Integration not found");
+  }
+
+  await prisma.$transaction([
+    prisma.integration.updateMany({
+      where: {
+        companyId,
+        provider: integration.provider,
+      },
+      data: {
+        isDefault: false,
+      },
+    }),
+    prisma.integration.update({
+      where: {
+        id: integration.id,
+      },
+      data: {
+        isDefault: true,
+      },
+    }),
+  ]);
+
+  return { success: true };
 }

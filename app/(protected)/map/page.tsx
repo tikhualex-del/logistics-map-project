@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import YandexMap from "../../components/map/YandexMap";
-import styles from "../page.module.css";
+import YandexMap from "../../../components/map/YandexMap";
+import styles from "./page.module.css";
 
 type Order = {
     id: number;
@@ -240,6 +240,7 @@ export default function HomePage() {
     const [deliveryDate, setDeliveryDate] = useState(
         searchParams.get("deliveryDate") || ""
     );
+    const [logoutLoading, setLogoutLoading] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -357,13 +358,28 @@ export default function HomePage() {
         },
     ];
 
-    useEffect(() => {
-        const isAuth = localStorage.getItem("auth");
 
-        if (!isAuth) {
+    async function handleLogout() {
+        try {
+            setLogoutLoading(true);
+
+            const res = await fetch("/api/auth/logout", {
+                method: "POST",
+                credentials: "include",
+            });
+
+            if (!res.ok) {
+                alert("Не удалось выйти из системы");
+                return;
+            }
+
             router.replace("/login");
+        } catch {
+            alert("Ошибка при выходе из системы");
+        } finally {
+            setLogoutLoading(false);
         }
-    }, [router]);
+    }
 
     function getDeliveryCardAccentColor(
         order: Order,
@@ -3587,6 +3603,37 @@ export default function HomePage() {
                 position: "relative",
             }}
         >
+
+            <div
+                style={{
+                    position: "absolute",
+                    top: "16px",
+                    right: "16px",
+                    zIndex: 200,
+                    pointerEvents: "auto",
+                }}
+            >
+                <button
+                    type="button"
+                    onClick={handleLogout}
+                    disabled={logoutLoading}
+                    style={{
+                        height: "42px",
+                        minWidth: "120px",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "12px",
+                        background: "#ffffff",
+                        color: "#111827",
+                        fontSize: "14px",
+                        fontWeight: 700,
+                        cursor: logoutLoading ? "not-allowed" : "pointer",
+                        boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
+                        padding: "0 16px",
+                    }}
+                >
+                    {logoutLoading ? "Выходим..." : "Выйти"}
+                </button>
+            </div>
             <div
                 style={{
                     position: "absolute",

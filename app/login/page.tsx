@@ -44,14 +44,6 @@ export default function LoginPage() {
         return;
       }
 
-      // сохраняем auth (временно)
-      localStorage.setItem("auth", "true");
-
-      // если есть userId или token — лучше сохранить
-      if (data.data?.user?.id) {
-        localStorage.setItem("userId", String(data.data.user.id));
-      }
-
       // редирект на карту
       router.push("/map");
     } catch {
