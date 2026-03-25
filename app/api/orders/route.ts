@@ -77,7 +77,7 @@ export async function POST(request: Request) {
     const integrationId = data.integrationId || null;
     const warehouseId = data.warehouseId || null;
 
-    const externalId = data.externalId;;
+    const externalId = data.externalId;
     const title = data.title;
     const status = data.status;
     const deliveryType = data.deliveryType;

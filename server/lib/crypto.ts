@@ -26,11 +26,29 @@ export function encrypt(text: string): string {
 }
 
 export function decrypt(text: string): string {
-  const [ivHex, encrypted] = text.split(":");
+  if (!text || typeof text !== "string") {
+    throw new Error("Encrypted text is empty");
+  }
+
+  const parts = text.split(":");
+
+  if (parts.length !== 2) {
+    throw new Error("Encrypted text has invalid format");
+  }
+
+  const [ivHex, encrypted] = parts;
+
+  if (!ivHex || !encrypted) {
+    throw new Error("Encrypted text is incomplete");
+  }
 
   const iv = Buffer.from(ivHex, "hex");
-  const key = getKey();
 
+  if (iv.length !== IV_LENGTH) {
+    throw new Error("Encrypted text has invalid IV");
+  }
+
+  const key = getKey();
   const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
 
   let decrypted = decipher.update(encrypted, "hex", "utf8");

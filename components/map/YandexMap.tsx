@@ -760,10 +760,29 @@ export default function YandexMap({
 
         map.geoObjects.removeAll();
 
+        const coordinateMap = new Map<string, number>();
+
+        if (warehouse) {
+          const warehouseKey = `${warehouse.coordinates[0].toFixed(5)}_${warehouse.coordinates[1].toFixed(5)}`;
+          coordinateMap.set(warehouseKey, 1);
+        }
+
         orders.forEach((order) => {
           const isSelected = selectedOrderIds.includes(order.id);
+
+          const key = `${order.coordinates[0].toFixed(5)}_${order.coordinates[1].toFixed(5)}`;
+          const count = coordinateMap.get(key) || 0;
+          coordinateMap.set(key, count + 1);
+
+          const offset = count * 0.00015;
+
+          const adjustedCoordinates: [number, number] = [
+            order.coordinates[0] + offset,
+            order.coordinates[1] + offset,
+          ];
+
           const placemark = new ymaps.Placemark(
-            order.coordinates,
+            adjustedCoordinates,
             {
               balloonContent: `
   <div style="max-width: 320px; line-height: 1.45; font-size: 14px;">
@@ -798,20 +817,13 @@ export default function YandexMap({
     </div>
   </div>
 `,
-
-              hintContent: `${order.title
-                } — ${getStatusLabel(order.status)}${order.deliveryFrom && order.deliveryTo
-                  ? ` — ${order.deliveryFrom} — ${order.deliveryTo}`
-                  : ""
+              hintContent: `${order.title} — ${getStatusLabel(order.status)}${order.deliveryFrom && order.deliveryTo
+                ? ` — ${order.deliveryFrom} — ${order.deliveryTo}`
+                : ""
                 }`,
             },
             {
-              iconLayout: "default#image",
-              iconImageHref: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
-                getStatusIconSvg(order.status, isSelected, order.deliveryTypeCode)
-              )}`,
-              iconImageSize: isSelected ? [40, 40] : [36, 36],
-              iconImageOffset: isSelected ? [-20, -20] : [-18, -18],
+              preset: isSelected ? "islands#greenDotIcon" : "islands#blueDotIcon",
             }
           );
 

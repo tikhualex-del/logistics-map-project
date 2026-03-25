@@ -716,7 +716,7 @@ export default function HomePage() {
             setLoading(true);
             setError(null);
 
-            let url = "/api/retailcrm/orders";
+            let url = "/api/map/orders";
             if (date) {
                 url += `?deliveryDate=${date}`;
             }
@@ -724,12 +724,13 @@ export default function HomePage() {
             const response = await fetch(url, {
                 method: "GET",
                 cache: "no-store",
+                credentials: "include",
             });
 
             const data = await response.json();
 
-            if (!data.success) {
-                setError(data.error || "Ошибка загрузки заказов");
+            if (!response.ok || !data.success) {
+                setError(data.message || "Ошибка загрузки заказов");
                 setOrders([]);
                 return;
             }
@@ -3604,36 +3605,7 @@ export default function HomePage() {
             }}
         >
 
-            <div
-                style={{
-                    position: "absolute",
-                    top: "16px",
-                    right: "16px",
-                    zIndex: 200,
-                    pointerEvents: "auto",
-                }}
-            >
-                <button
-                    type="button"
-                    onClick={handleLogout}
-                    disabled={logoutLoading}
-                    style={{
-                        height: "42px",
-                        minWidth: "120px",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "12px",
-                        background: "#ffffff",
-                        color: "#111827",
-                        fontSize: "14px",
-                        fontWeight: 700,
-                        cursor: logoutLoading ? "not-allowed" : "pointer",
-                        boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
-                        padding: "0 16px",
-                    }}
-                >
-                    {logoutLoading ? "Выходим..." : "Выйти"}
-                </button>
-            </div>
+
             <div
                 style={{
                     position: "absolute",
@@ -3684,6 +3656,26 @@ export default function HomePage() {
                             boxShadow: "none",
                         }}
                     >
+
+                        <div
+                            style={{
+                                position: "absolute",
+                                top: "80px",
+                                left: "100px",
+                                zIndex: 80,
+                                background: "rgba(255,255,255,0.95)",
+                                border: "1px solid #e5e7eb",
+                                borderRadius: "12px",
+                                padding: "10px 12px",
+                                fontSize: "13px",
+                                color: "#111827",
+                                boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
+                            }}
+                        >
+                            Всего заказов: {orders.length}
+                            <br />
+                            С координатами: {activeTabOrders.filter(hasCoordinates).length}
+                        </div>
                         <YandexMap
                             orders={deliveryDate ? activeTabOrders.filter(hasCoordinates) : []}
                             routeOrders={deliveryDate ? routeOrders.filter(hasCoordinates) : []}

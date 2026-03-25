@@ -159,3 +159,63 @@ model Order {
   @@index([externalId])
   @@unique([companyId, integrationId, externalId])
 }
+
+model GeocodeCache {
+  id          String   @id @default(cuid())
+  addressKey  String   @unique
+  lat         Float?
+  lon         Float?
+  displayName String?
+  kind        String?
+  precision   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([addressKey])
+}
+
+model AddressDictionary {
+  id               String   @id @default(cuid())
+  country          String?  @default("RU")
+  region           String?
+  city             String?
+  streetNormalized String
+  streetOriginal   String?
+  house            String
+  housing          String?
+  building         String?
+  lat              Float
+  lon              Float
+  source           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([city])
+  @@index([streetNormalized])
+  @@index([city, streetNormalized, house, housing, building])
+}
+
+model LoginRateLimit {
+  id              String   @id @default(cuid())
+  key             String   @unique
+  ip              String
+  email           String
+  attempts        Int      @default(0)
+  windowStartedAt DateTime
+  blockedUntil    DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([ip])
+  @@index([email])
+  @@index([blockedUntil])
+}
+
+model CronExecutionLock {
+  key         String   @id
+  lockedUntil DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([lockedUntil])
+}

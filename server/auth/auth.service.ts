@@ -1,6 +1,7 @@
 import bcrypt from "bcrypt";
 import { prisma } from "@/lib/prisma";
 import { randomUUID } from "crypto";
+import { AuthError } from "@/server/auth/auth.errors";
 
 type CreateOwnerBundleInput = {
     companyName: string;
@@ -26,13 +27,13 @@ export async function loginUser(email: string, password: string) {
     });
 
     if (!user) {
-        throw new Error("Invalid email or password");
+        throw new AuthError("INVALID_CREDENTIALS", "Invalid email or password");
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
-        throw new Error("Invalid email or password");
+        throw new AuthError("INVALID_CREDENTIALS", "Invalid email or password");
     }
 
     const activeMembership = user.memberships.find(
@@ -40,7 +41,10 @@ export async function loginUser(email: string, password: string) {
     );
 
     if (!activeMembership) {
-        throw new Error("User has no active company access");
+        throw new AuthError(
+            "NO_ACTIVE_COMPANY_ACCESS",
+            "User has no active company access"
+        );
     }
 
     const sessionToken = randomUUID();
@@ -155,6 +159,12 @@ export async function getCurrentUserBySessionToken(sessionToken: string) {
     const now = new Date();
 
     if (session.expiresAt < now) {
+        await prisma.session.delete({
+            where: {
+                token: sessionToken,
+            },
+        });
+
         throw new Error("Session expired");
     }
 
@@ -194,6 +204,12 @@ export async function getCurrentSessionWithCompany(sessionToken: string) {
     const now = new Date();
 
     if (session.expiresAt < now) {
+        await prisma.session.delete({
+            where: {
+                token: sessionToken,
+            },
+        });
+
         throw new Error("Session expired");
     }
 

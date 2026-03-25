@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 function BellIcon() {
   return (
@@ -28,6 +29,7 @@ export default function TopBar() {
   const searchParams = useSearchParams();
 
   const deliveryDate = searchParams.get("deliveryDate") || "";
+  const [logoutLoading, setLogoutLoading] = useState(false);
 
   function buildHref(baseHref: string) {
     const params = new URLSearchParams(searchParams.toString());
@@ -53,6 +55,28 @@ export default function TopBar() {
 
     const query = params.toString();
     router.replace(query ? `${pathname}?${query}` : pathname);
+  }
+
+  async function handleLogout() {
+    try {
+      setLogoutLoading(true);
+
+      const res = await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        alert("Не удалось выйти из системы");
+        return;
+      }
+
+      router.replace("/login");
+    } catch {
+      alert("Ошибка при выходе из системы");
+    } finally {
+      setLogoutLoading(false);
+    }
   }
 
   return (
@@ -103,17 +127,17 @@ export default function TopBar() {
 
           <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <Link
-              href={buildHref("/")}
+              href={buildHref("/map")}
               style={{
                 height: "34px",
                 padding: "0 14px",
                 borderRadius: "10px",
                 border:
-                  pathname === "/"
+                  pathname === "/map"
                     ? "1px solid #bfdbfe"
                     : "1px solid transparent",
-                background: pathname === "/" ? "#eff6ff" : "transparent",
-                color: pathname === "/" ? "#2563eb" : "#4b5563",
+                background: pathname === "/map" ? "#eff6ff" : "transparent",
+                color: pathname === "/map" ? "#2563eb" : "#4b5563",
                 fontSize: "13px",
                 fontWeight: 700,
                 cursor: "pointer",
@@ -282,6 +306,27 @@ export default function TopBar() {
               >
                 👤
               </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={logoutLoading}
+              style={{
+                height: "34px",
+                minWidth: "96px",
+                borderRadius: "10px",
+                border: "1px solid #e5e7eb",
+                background: "#ffffff",
+                color: "#111827",
+                fontSize: "13px",
+                fontWeight: 700,
+                cursor: logoutLoading ? "not-allowed" : "pointer",
+                padding: "0 14px",
+                opacity: logoutLoading ? 0.7 : 1,
+              }}
+            >
+              {logoutLoading ? "Выходим..." : "Выйти"}
             </button>
           </div>
         </div>

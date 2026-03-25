@@ -1,4 +1,8 @@
 import { getRetailCrmIntegrationCredentials } from "@/server/integrations/integration-credentials.service";
+import {
+  HttpClientError,
+  requestJson,
+} from "@/lib/http/http-client";
 
 type RetailCrmRequestParams = {
   companyId: string;
@@ -6,6 +10,31 @@ type RetailCrmRequestParams = {
   path: string;
   searchParams?: Record<string, string | number | boolean | null | undefined>;
 };
+
+function buildRetailCrmErrorMessage(error: unknown) {
+  if (error instanceof HttpClientError) {
+    try {
+      const parsed = JSON.parse(error.responseBody) as {
+        errorMsg?: string;
+        message?: string;
+      };
+
+      return (
+        parsed?.errorMsg ||
+        parsed?.message ||
+        `RetailCRM request failed with status ${error.status}`
+      );
+    } catch {
+      return `RetailCRM request failed with status ${error.status}`;
+    }
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return "RetailCRM request failed";
+}
 
 export async function retailCrmGet(params: RetailCrmRequestParams) {
   const { companyId, integrationId, path, searchParams = {} } = params;
@@ -27,39 +56,18 @@ export async function retailCrmGet(params: RetailCrmRequestParams) {
     url.searchParams.set(key, String(value));
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 10000);
-
-  let response: Response;
+  let data: unknown;
 
   try {
-    response = await fetch(url.toString(), {
+    data = await requestJson<unknown>({
+      url: url.toString(),
       method: "GET",
-      cache: "no-store",
-      signal: controller.signal,
+      timeoutMs: 10000,
+      retryCount: 2,
+      retryDelayMs: 500,
     });
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("RetailCRM request timeout");
-    }
-
-    throw new Error(
-      error instanceof Error
-        ? `RetailCRM request failed: ${error.message}`
-        : "RetailCRM request failed"
-    );
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  const rawText = await response.text();
-
-  let data: any;
-
-  try {
-    data = JSON.parse(rawText);
-  } catch {
-    throw new Error("RetailCRM returned non-JSON response");
+    throw new Error(buildRetailCrmErrorMessage(error));
   }
 
   return {
@@ -69,8 +77,8 @@ export async function retailCrmGet(params: RetailCrmRequestParams) {
       provider: integration.provider,
       baseUrl: integration.baseUrl,
     },
-    status: response.status,
-    ok: response.ok,
+    status: 200,
+    ok: true,
     data,
   };
 }
