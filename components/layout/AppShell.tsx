@@ -15,11 +15,15 @@ type AppShellProps = {
   children: React.ReactNode;
 };
 
+const publicRoutes = new Set(["/", "/login", "/register"]);
+
 export default function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
 
+  const isPublicRoute = publicRoutes.has(pathname);
+  const isAdminRoute = pathname === "/admin" || pathname.startsWith("/admin/");
   const deliveryDate = searchParams.get("deliveryDate");
 
   function buildHref(baseHref: string) {
@@ -33,6 +37,10 @@ export default function AppShell({ children }: AppShellProps) {
 
     const query = params.toString();
     return query ? `${baseHref}?${query}` : baseHref;
+  }
+
+  if (isPublicRoute || isAdminRoute) {
+    return <>{children}</>;
   }
 
   return (

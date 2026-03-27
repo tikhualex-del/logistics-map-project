@@ -64,6 +64,13 @@ export default function LoginPage() {
         return;
       }
 
+      const nextPath = searchParams.get("next");
+
+      if (nextPath && nextPath.startsWith("/")) {
+        router.push(nextPath);
+        return;
+      }
+
       router.push("/settings");
     } catch {
       setError("Ошибка сети или сервера");

@@ -5,7 +5,7 @@ import {
   REQUEST_ID_HEADER,
 } from "@/lib/observability/request-trace";
 
-const PROTECTED_PATHS = ["/map", "/settings"];
+const PROTECTED_PATHS = ["/map", "/settings", "/admin"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
