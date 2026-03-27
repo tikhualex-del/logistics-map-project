@@ -1,6 +1,7 @@
 export type AuthErrorCode =
   | "INVALID_CREDENTIALS"
-  | "NO_ACTIVE_COMPANY_ACCESS";
+  | "NO_ACTIVE_COMPANY_ACCESS"
+  | "USER_DISABLED";
 
 export class AuthError extends Error {
   public readonly code: AuthErrorCode;

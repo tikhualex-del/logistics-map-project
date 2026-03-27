@@ -9,6 +9,7 @@ type Company = {
     createdAt: string;
     ownerEmail: string;
     isActive: boolean;
+    statusLoading?: boolean;
 };
 
 export default function AdminCompaniesPage() {
@@ -49,6 +50,64 @@ export default function AdminCompaniesPage() {
             company.ownerEmail.toLowerCase().includes(normalizedSearch)
         );
     });
+
+    async function handleToggleCompanyStatus(companyId: string) {
+        try {
+            setCompanies((prev) =>
+                prev.map((company) =>
+                    company.id === companyId
+                        ? { ...company, statusLoading: true }
+                        : company
+                )
+            );
+
+            const response = await fetch(
+                `/api/admin/companies/${companyId}/toggle-status`,
+                {
+                    method: "POST",
+                    credentials: "include",
+                }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success) {
+                setError(data.message || "Не удалось изменить статус компании");
+
+                setCompanies((prev) =>
+                    prev.map((company) =>
+                        company.id === companyId
+                            ? { ...company, statusLoading: false }
+                            : company
+                    )
+                );
+
+                return;
+            }
+
+            setCompanies((prev) =>
+                prev.map((company) =>
+                    company.id === companyId
+                        ? {
+                            ...company,
+                            isActive: data.data.isActive,
+                            statusLoading: false,
+                        }
+                        : company
+                )
+            );
+        } catch {
+            setError("Ошибка сети при изменении статуса компании");
+
+            setCompanies((prev) =>
+                prev.map((company) =>
+                    company.id === companyId
+                        ? { ...company, statusLoading: false }
+                        : company
+                )
+            );
+        }
+    }
 
     if (loading) return <div>Загрузка...</div>;
     if (error) return <div style={{ color: "red" }}>{error}</div>;
@@ -111,7 +170,7 @@ export default function AdminCompaniesPage() {
                         padding: "14px 16px",
                         borderBottom: "1px solid #e5e7eb",
                         display: "grid",
-                        gridTemplateColumns: "1fr 1fr 1fr 120px",
+                        gridTemplateColumns: "1fr 1fr 1fr 120px 140px",
                         alignItems: "center",
                         gap: "12px",
                         background: "#f8fafc",
@@ -164,6 +223,18 @@ export default function AdminCompaniesPage() {
                     >
                         Статус
                     </div>
+
+                    <div
+                        style={{
+                            color: "#6b7280",
+                            fontSize: "12px",
+                            fontWeight: 800,
+                            textTransform: "uppercase",
+                            letterSpacing: "0.06em",
+                        }}
+                    >
+                        Действие
+                    </div>
                 </div>
 
                 {filteredCompanies.length === 0 ? (
@@ -188,7 +259,7 @@ export default function AdminCompaniesPage() {
                                 padding: "16px",
                                 borderBottom: "1px solid #f1f5f9",
                                 display: "grid",
-                                gridTemplateColumns: "1fr 1fr 1fr 120px",
+                                gridTemplateColumns: "1fr 1fr 1fr 120px 140px",
                                 alignItems: "center",
                                 gap: "12px",
                                 cursor: "pointer",
@@ -197,12 +268,31 @@ export default function AdminCompaniesPage() {
                         >
                             <div
                                 style={{
-                                    color: "#111827",
-                                    fontSize: "15px",
-                                    lineHeight: 1.4,
+                                    display: "grid",
+                                    gap: "4px",
                                 }}
                             >
-                                <strong>{company.name}</strong>
+                                <div
+                                    style={{
+                                        color: "#111827",
+                                        fontSize: "15px",
+                                        lineHeight: 1.4,
+                                    }}
+                                >
+                                    <strong>{company.name}</strong>
+                                </div>
+
+                                <div
+                                    style={{
+                                        color: "#9ca3af",
+                                        fontSize: "12px",
+                                        lineHeight: 1.4,
+                                        fontFamily: "monospace",
+                                        wordBreak: "break-all",
+                                    }}
+                                >
+                                    {company.id}
+                                </div>
                             </div>
 
                             <div
@@ -234,6 +324,34 @@ export default function AdminCompaniesPage() {
                             >
                                 {company.isActive ? "Active" : "Disabled"}
                             </div>
+
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleCompanyStatus(company.id);
+                                }}
+                                disabled={company.statusLoading}
+                                style={{
+                                    height: "36px",
+                                    padding: "0 12px",
+                                    borderRadius: "10px",
+                                    border: company.isActive
+                                        ? "1px solid #fecaca"
+                                        : "1px solid #bbf7d0",
+                                    background: company.isActive ? "#fef2f2" : "#f0fdf4",
+                                    color: company.isActive ? "#b91c1c" : "#15803d",
+                                    fontSize: "13px",
+                                    fontWeight: 800,
+                                    cursor: company.statusLoading ? "not-allowed" : "pointer",
+                                }}
+                            >
+                                {company.statusLoading
+                                    ? "Сохраняем..."
+                                    : company.isActive
+                                        ? "Deactivate"
+                                        : "Activate"}
+                            </button>
                         </div>
                     ))
                 )}

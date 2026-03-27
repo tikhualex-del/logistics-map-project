@@ -9,6 +9,7 @@ const adminNavItems = [
   { href: "/admin/companies", label: "Компании" },
   { href: "/admin/users", label: "Пользователи" },
   { href: "/admin/integrations", label: "Интеграции" },
+  { href: "/admin/import-monitoring", label: "Импорт" },
 ];
 
 export default function AdminTopBar() {

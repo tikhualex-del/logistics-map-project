@@ -195,13 +195,31 @@ export default function AdminIntegrationsPage() {
                         >
                             <div
                                 style={{
-                                    color: "#111827",
-                                    fontSize: "15px",
-                                    lineHeight: 1.4,
-                                    fontWeight: 700,
+                                    display: "grid",
+                                    gap: "4px",
                                 }}
                             >
-                                {integration.companyName}
+                                <div
+                                    style={{
+                                        color: "#374151",
+                                        fontSize: "15px",
+                                        lineHeight: 1.4,
+                                    }}
+                                >
+                                    {integration.name}
+                                </div>
+
+                                <div
+                                    style={{
+                                        color: "#9ca3af",
+                                        fontSize: "12px",
+                                        lineHeight: 1.4,
+                                        fontFamily: "monospace",
+                                        wordBreak: "break-all",
+                                    }}
+                                >
+                                    {integration.id}
+                                </div>
                             </div>
 
                             <div

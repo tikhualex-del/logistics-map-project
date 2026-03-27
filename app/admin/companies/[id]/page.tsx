@@ -9,6 +9,7 @@ type CompanyUser = {
   email: string;
   role: string;
   isActive: boolean;
+  statusLoading?: boolean;
 };
 
 type CompanyDetail = {
@@ -38,6 +39,7 @@ export default function AdminCompanyDetailPage({
   const [company, setCompany] = useState<CompanyDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [statusLoading, setStatusLoading] = useState(false);
 
   useEffect(() => {
     fetch(`/api/admin/companies/${id}`)
@@ -57,6 +59,120 @@ export default function AdminCompanyDetailPage({
         setLoading(false);
       });
   }, [id]);
+
+  async function handleToggleUserStatus(userId: string) {
+    try {
+      setCompany((prev) =>
+        prev
+          ? {
+            ...prev,
+            users: prev.users.map((user) =>
+              user.id === userId
+                ? { ...user, statusLoading: true }
+                : user
+            ),
+          }
+          : prev
+      );
+
+      const response = await fetch(
+        `/api/admin/users/${userId}/toggle-status`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.message || "Не удалось изменить статус пользователя");
+
+        setCompany((prev) =>
+          prev
+            ? {
+              ...prev,
+              users: prev.users.map((user) =>
+                user.id === userId
+                  ? { ...user, statusLoading: false }
+                  : user
+              ),
+            }
+            : prev
+        );
+
+        return;
+      }
+
+      setCompany((prev) =>
+        prev
+          ? {
+            ...prev,
+            users: prev.users.map((user) =>
+              user.id === userId
+                ? {
+                  ...user,
+                  isActive: data.data.isActive,
+                  statusLoading: false,
+                }
+                : user
+            ),
+          }
+          : prev
+      );
+    } catch {
+      setError("Ошибка сети при изменении статуса пользователя");
+
+      setCompany((prev) =>
+        prev
+          ? {
+            ...prev,
+            users: prev.users.map((user) =>
+              user.id === userId
+                ? { ...user, statusLoading: false }
+                : user
+            ),
+          }
+          : prev
+      );
+    }
+  }
+
+  async function handleToggleStatus() {
+    if (!company) return;
+
+    try {
+      setStatusLoading(true);
+
+      const response = await fetch(
+        `/api/admin/companies/${company.id}/toggle-status`,
+        {
+          method: "POST",
+          credentials: "include",
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.message || "Не удалось изменить статус компании");
+        return;
+      }
+
+      setCompany((prev) =>
+        prev
+          ? {
+            ...prev,
+            isActive: data.data.isActive,
+          }
+          : prev
+      );
+    } catch {
+      setError("Ошибка сети при изменении статуса компании");
+    } finally {
+      setStatusLoading(false);
+    }
+  }
 
   if (loading) {
     return <div>Загрузка...</div>;
@@ -132,18 +248,50 @@ export default function AdminCompanyDetailPage({
 
         <div
           style={{
-            display: "inline-flex",
+            display: "flex",
             alignItems: "center",
-            height: "38px",
-            padding: "0 14px",
-            borderRadius: "999px",
-            background: company.isActive ? "#ecfdf5" : "#fef2f2",
-            color: company.isActive ? "#15803d" : "#b91c1c",
-            fontSize: "14px",
-            fontWeight: 800,
+            gap: "10px",
+            flexWrap: "wrap",
           }}
         >
-          {company.isActive ? "Active" : "Disabled"}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              height: "38px",
+              padding: "0 14px",
+              borderRadius: "999px",
+              background: company.isActive ? "#ecfdf5" : "#fef2f2",
+              color: company.isActive ? "#15803d" : "#b91c1c",
+              fontSize: "14px",
+              fontWeight: 800,
+            }}
+          >
+            {company.isActive ? "Active" : "Disabled"}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleToggleStatus}
+            disabled={statusLoading}
+            style={{
+              height: "38px",
+              padding: "0 14px",
+              borderRadius: "12px",
+              border: company.isActive ? "1px solid #fecaca" : "1px solid #bbf7d0",
+              background: company.isActive ? "#fef2f2" : "#f0fdf4",
+              color: company.isActive ? "#b91c1c" : "#15803d",
+              fontSize: "14px",
+              fontWeight: 800,
+              cursor: statusLoading ? "not-allowed" : "pointer",
+            }}
+          >
+            {statusLoading
+              ? "Сохраняем..."
+              : company.isActive
+                ? "Deactivate"
+                : "Activate"}
+          </button>
         </div>
       </div>
 
@@ -219,7 +367,7 @@ export default function AdminCompanyDetailPage({
                   borderRadius: "16px",
                   padding: "14px 16px",
                   display: "grid",
-                  gridTemplateColumns: "1fr 1fr 120px 120px",
+                  gridTemplateColumns: "1fr 1fr 120px 120px 140px",
                   gap: "12px",
                   alignItems: "center",
                 }}
@@ -264,6 +412,31 @@ export default function AdminCompanyDetailPage({
                 >
                   {user.isActive ? "Active" : "Disabled"}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleToggleUserStatus(user.id)}
+                  disabled={user.statusLoading}
+                  style={{
+                    height: "36px",
+                    padding: "0 12px",
+                    borderRadius: "10px",
+                    border: user.isActive
+                      ? "1px solid #fecaca"
+                      : "1px solid #bbf7d0",
+                    background: user.isActive ? "#fef2f2" : "#f0fdf4",
+                    color: user.isActive ? "#b91c1c" : "#15803d",
+                    fontSize: "13px",
+                    fontWeight: 800,
+                    cursor: user.statusLoading ? "not-allowed" : "pointer",
+                  }}
+                >
+                  {user.statusLoading
+                    ? "Сохраняем..."
+                    : user.isActive
+                      ? "Deactivate"
+                      : "Activate"}
+                </button>
               </div>
             ))
           )}

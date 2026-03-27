@@ -11,6 +11,7 @@ type CreateOwnerBundleInput = {
 };
 
 export async function loginUser(email: string, password: string) {
+
     const normalizedEmail = email.trim().toLowerCase();
 
     const user = await prisma.user.findUnique({
@@ -30,6 +31,10 @@ export async function loginUser(email: string, password: string) {
         throw new AuthError("INVALID_CREDENTIALS", "Invalid email or password");
     }
 
+    if (!user.isActive) {
+        throw new AuthError("USER_DISABLED", "User account is disabled");
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
 
     if (!isPasswordValid) {
@@ -37,7 +42,7 @@ export async function loginUser(email: string, password: string) {
     }
 
     const activeMembership = user.memberships.find(
-        (membership) => membership.isActive
+        (membership) => membership.isActive && membership.company.isActive
     );
 
     if (!activeMembership) {

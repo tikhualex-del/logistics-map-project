@@ -3,6 +3,23 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+function translateLoginError(message: string) {
+  switch (message) {
+    case "User account is disabled":
+      return "Аккаунт пользователя отключён";
+    case "Invalid email or password":
+      return "Неверный email или пароль";
+    case "Too many login attempts. Please try again later.":
+      return "Слишком много попыток входа. Попробуйте позже";
+    case "User has no active company access":
+      return "У пользователя нет активного доступа к компании";
+    case "Invalid request data":
+      return "Некорректные данные запроса";
+    default:
+      return message;
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -60,7 +77,7 @@ export default function LoginPage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        setError(data.message || "Ошибка входа");
+        setError(translateLoginError(data.message || "Ошибка входа"));
         return;
       }
 

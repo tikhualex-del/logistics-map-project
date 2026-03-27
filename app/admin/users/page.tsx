@@ -10,6 +10,7 @@ type UserItem = {
   role: string;
   isActive: boolean;
   createdAt: string;
+  statusLoading?: boolean;
 };
 
 export default function AdminUsersPage() {
@@ -50,6 +51,55 @@ export default function AdminUsersPage() {
       user.companyName.toLowerCase().includes(normalizedSearch)
     );
   });
+
+  async function handleToggleUserStatus(userId: string) {
+    try {
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId ? { ...user, statusLoading: true } : user
+        )
+      );
+
+      const response = await fetch(`/api/admin/users/${userId}/toggle-status`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.message || "Не удалось изменить статус пользователя");
+
+        setUsers((prev) =>
+          prev.map((user) =>
+            user.id === userId ? { ...user, statusLoading: false } : user
+          )
+        );
+
+        return;
+      }
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId
+            ? {
+              ...user,
+              isActive: data.data.isActive,
+              statusLoading: false,
+            }
+            : user
+        )
+      );
+    } catch {
+      setError("Ошибка сети при изменении статуса пользователя");
+
+      setUsers((prev) =>
+        prev.map((user) =>
+          user.id === userId ? { ...user, statusLoading: false } : user
+        )
+      );
+    }
+  }
 
   if (loading) return <div>Загрузка...</div>;
   if (error) return <div style={{ color: "#b91c1c" }}>{error}</div>;
@@ -113,7 +163,7 @@ export default function AdminUsersPage() {
             padding: "14px 16px",
             borderBottom: "1px solid #e5e7eb",
             display: "grid",
-            gridTemplateColumns: "1.1fr 1.2fr 1fr 120px 120px",
+            gridTemplateColumns: "1.1fr 1.2fr 1fr 120px 120px 140px",
             alignItems: "center",
             gap: "12px",
             background: "#f8fafc",
@@ -178,6 +228,18 @@ export default function AdminUsersPage() {
           >
             Статус
           </div>
+
+          <div
+            style={{
+              color: "#6b7280",
+              fontSize: "12px",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
+            }}
+          >
+            Действие
+          </div>
         </div>
 
         {filteredUsers.length === 0 ? (
@@ -201,20 +263,39 @@ export default function AdminUsersPage() {
                 padding: "16px",
                 borderBottom: "1px solid #f1f5f9",
                 display: "grid",
-                gridTemplateColumns: "1.1fr 1.2fr 1fr 120px 120px",
+                gridTemplateColumns: "1.1fr 1.2fr 1fr 120px 120px 140px",
                 alignItems: "center",
                 gap: "12px",
               }}
             >
               <div
                 style={{
-                  color: "#111827",
-                  fontSize: "15px",
-                  lineHeight: 1.4,
-                  fontWeight: 700,
+                  display: "grid",
+                  gap: "4px",
                 }}
               >
-                {user.fullName}
+                <div
+                  style={{
+                    color: "#111827",
+                    fontSize: "15px",
+                    lineHeight: 1.4,
+                    fontWeight: 700,
+                  }}
+                >
+                  {user.fullName}
+                </div>
+
+                <div
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: "12px",
+                    lineHeight: 1.4,
+                    fontFamily: "monospace",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {user.id}
+                </div>
               </div>
 
               <div
@@ -257,6 +338,30 @@ export default function AdminUsersPage() {
               >
                 {user.isActive ? "Active" : "Disabled"}
               </div>
+              <button
+                type="button"
+                onClick={() => handleToggleUserStatus(user.id)}
+                disabled={user.statusLoading}
+                style={{
+                  height: "36px",
+                  padding: "0 12px",
+                  borderRadius: "10px",
+                  border: user.isActive
+                    ? "1px solid #fecaca"
+                    : "1px solid #bbf7d0",
+                  background: user.isActive ? "#fef2f2" : "#f0fdf4",
+                  color: user.isActive ? "#b91c1c" : "#15803d",
+                  fontSize: "13px",
+                  fontWeight: 800,
+                  cursor: user.statusLoading ? "not-allowed" : "pointer",
+                }}
+              >
+                {user.statusLoading
+                  ? "Сохраняем..."
+                  : user.isActive
+                    ? "Deactivate"
+                    : "Activate"}
+              </button>
             </div>
           ))
         )}

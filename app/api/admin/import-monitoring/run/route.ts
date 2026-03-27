@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { prisma } from "../../../../../lib/prisma";
 import { retailCrmGet } from "@/server/integrations/retailcrm-client.service";
 import { importBatchOrdersForCompany } from "@/server/orders/order-import.service";
-import { prisma } from "@/lib/prisma";
+import { getCurrentUserBySessionToken } from "@/server/auth/auth.service";
+import { isAdminEmail } from "@/server/admin/admin-access";
 
 type RetailCrmOrdersResponse = {
   success?: boolean;
@@ -9,18 +12,33 @@ type RetailCrmOrdersResponse = {
   orders?: any[];
 };
 
-export async function POST(request: Request) {
-  const cronSecret = process.env.CRON_SECRET;
-  const providedSecret = request.headers.get("x-cron-secret");
-
-  if (!cronSecret || providedSecret !== cronSecret) {
-    return NextResponse.json(
-      { success: false, message: "Unauthorized" },
-      { status: 401 }
-    );
-  }
-
+export async function POST() {
   try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get("session_token")?.value;
+
+    if (!sessionToken) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Unauthorized",
+        },
+        { status: 401 }
+      );
+    }
+
+    const current = await getCurrentUserBySessionToken(sessionToken);
+
+    if (!isAdminEmail(current.user.email)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Forbidden",
+        },
+        { status: 403 }
+      );
+    }
+
     const deliveryDate = new Date().toISOString().slice(0, 10);
 
     const integrations = await prisma.integration.findMany({
@@ -31,15 +49,8 @@ export async function POST(request: Request) {
       select: {
         id: true,
         companyId: true,
-        provider: true,
-        isActive: true,
         name: true,
       },
-    });
-
-    console.log("CRON_ACTIVE_INTEGRATIONS", {
-      total: integrations.length,
-      integrations,
     });
 
     const results: Array<{
@@ -54,12 +65,6 @@ export async function POST(request: Request) {
 
     for (const integration of integrations) {
       try {
-        console.log("CRON_PROCESSING_INTEGRATION", {
-          integrationId: integration.id,
-          companyId: integration.companyId,
-          name: integration.name,
-        });
-
         const result = await retailCrmGet({
           companyId: integration.companyId,
           integrationId: integration.id,
@@ -104,11 +109,7 @@ export async function POST(request: Request) {
           summary: importResult.summary,
         });
       } catch (error) {
-        console.error("CRON_IMPORT_FAILED", {
-          integrationId: integration.id,
-          companyId: integration.companyId,
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
+        console.error("ADMIN_IMPORT_ERROR", error);
 
         results.push({
           integrationId: integration.id,
@@ -117,6 +118,8 @@ export async function POST(request: Request) {
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
         });
+
+        continue;
       }
     }
 
@@ -124,18 +127,20 @@ export async function POST(request: Request) {
     const failedCount = results.filter((item) => !item.success).length;
 
     return NextResponse.json({
-      success: failedCount === 0,
+      success: true,
+      completedWithErrors: failedCount > 0,
       totalIntegrations: integrations.length,
       successCount,
       failedCount,
       results,
     });
-  } catch (error) {
+  } catch (error: any) {
+    console.error("Admin manual import run error:", error);
+
     return NextResponse.json(
       {
         success: false,
-        error: "Cron import failed",
-        details: error instanceof Error ? error.message : "Unknown error",
+        message: error?.message || "Manual import run failed",
       },
       { status: 500 }
     );
