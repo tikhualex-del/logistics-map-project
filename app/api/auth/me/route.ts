@@ -1,40 +1,67 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { getCurrentUserBySessionToken } from "@/server/auth/auth.service";
+import { requireSession } from "@/server/auth/require-session";
+import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const cookieStore = await cookies();
-    const sessionToken = cookieStore.get("session_token")?.value;
+    const session = await requireSession();
 
-    if (!sessionToken) {
+    const user = await prisma.user.findUnique({
+      where: {
+        id: session.userId,
+      },
+      select: {
+        id: true,
+        email: true,
+        fullName: true,
+      },
+    });
+
+    const company = await prisma.company.findUnique({
+      where: {
+        id: session.companyId,
+      },
+      select: {
+        id: true,
+        name: true,
+        timezone: true,
+      },
+    });
+
+    if (!user || !company) {
       return NextResponse.json(
         {
           success: false,
-          message: "Not authenticated",
+          message: "Session data not found",
         },
-        { status: 401 }
+        { status: 404 }
       );
     }
 
-    const result = await getCurrentUserBySessionToken(sessionToken);
-
     return NextResponse.json({
       success: true,
-      data: result,
+      data: {
+        user,
+        company,
+        session: {
+          id: session.sessionId,
+          expiresAt: session.expiresAt,
+        },
+        role: session.role,
+      },
     });
   } catch (error) {
-    console.error("Get current user error:", error);
-
     const message =
       error instanceof Error ? error.message : "Failed to get current user";
+
+    const status = message === "Not authenticated" ? 401 : 401;
 
     return NextResponse.json(
       {
         success: false,
         message,
       },
-      { status: 401 }
+      { status }
     );
   }
 }

@@ -9,13 +9,17 @@ type SettingsLayoutProps = {
 };
 
 const navItems = [
-  { href: "/settings", label: "Общее" },
+  { href: "/settings", label: "Обзор настроек" },
+  { href: "/settings/general", label: "Общие настройки" },
+  { href: "/settings/features", label: "Настройка функционала" },
+  { href: "/settings/staff", label: "Команда" },
   { href: "/settings/warehouses", label: "Склады" },
+  { href: "/settings/operations/hours", label: "Рабочее время" },
+  { href: "/settings/routing/zones", label: "Зоны (полигоны)" },
   { href: "/settings/integrations", label: "Интеграции" },
   { href: "/settings/mappings", label: "Mappings" },
   { href: "/settings/orders", label: "Заказы" },
 ];
-
 export default function SettingsLayout({ children }: SettingsLayoutProps) {
   const pathname = usePathname();
 

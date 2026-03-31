@@ -98,6 +98,7 @@ export async function createOwnerBundle(input: CreateOwnerBundleInput) {
             data: {
                 name: companyName,
                 timezone: "Europe/Moscow",
+                currency: "RUB",
             },
         });
 
@@ -124,6 +125,7 @@ export async function createOwnerBundle(input: CreateOwnerBundleInput) {
                 id: company.id,
                 name: company.name,
                 timezone: company.timezone,
+                currency: company.currency,
                 isActive: company.isActive,
                 createdAt: company.createdAt,
             },

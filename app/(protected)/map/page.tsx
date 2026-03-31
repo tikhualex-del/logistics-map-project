@@ -18,6 +18,7 @@ type Order = {
     courierId?: number | null;
     courierName?: string | null;
     coordinates: [number, number] | null;
+    capacityPoints?: number;
 };
 
 type Courier = {
@@ -81,6 +82,13 @@ type OrderWithCoordinates = Order & {
     coordinates: [number, number];
 };
 
+type GeneralSettingsData = {
+    id: string;
+    name: string;
+    timezone: string;
+    currency: string;
+    distanceUnit: string;
+};
 
 
 function hasCoordinates(order: Order): order is OrderWithCoordinates {
@@ -358,6 +366,8 @@ export default function HomePage() {
         },
     ];
 
+    const [distanceUnit, setDistanceUnit] = useState<"km" | "mi">("km");
+
 
     async function handleLogout() {
         try {
@@ -483,6 +493,21 @@ export default function HomePage() {
 
         const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return R * c;
+    }
+
+    function formatDistance(
+        from: [number, number],
+        to: [number, number],
+        unit: "km" | "mi"
+    ) {
+        const km = getDistanceKm(from, to);
+
+        if (unit === "mi") {
+            const miles = km * 0.621371;
+            return `${miles.toFixed(1)} mi`;
+        }
+
+        return `${km.toFixed(1)} km`;
     }
 
     function getAngleFromWarehouse(order: Order) {
@@ -744,6 +769,29 @@ export default function HomePage() {
         }
     }
 
+    async function loadGeneralSettings() {
+        try {
+            const response = await fetch("/api/settings/general", {
+                method: "GET",
+                cache: "no-store",
+                credentials: "include",
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.success || !data.data) {
+                return;
+            }
+
+            const nextDistanceUnit =
+                data.data.distanceUnit === "mi" ? "mi" : "km";
+
+            setDistanceUnit(nextDistanceUnit);
+        } catch {
+            setDistanceUnit("km");
+        }
+    }
+
     useEffect(() => {
         setSelectedOrders([]);
         setRouteOrders([]);
@@ -763,6 +811,10 @@ export default function HomePage() {
 
         loadOrders(deliveryDate);
     }, [deliveryDate]);
+
+    useEffect(() => {
+        loadGeneralSettings();
+    }, []);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -2174,6 +2226,18 @@ export default function HomePage() {
                                     {getCleanCardAddress(order.textAddress)}
                                 </div>
 
+                                {order.coordinates && (
+                                    <div
+                                        style={{
+                                            fontSize: "12px",
+                                            color: "#6b7280",
+                                            whiteSpace: "nowrap",
+                                        }}
+                                    >
+                                        {formatDistance(WAREHOUSE.coordinates, order.coordinates, distanceUnit)}
+                                    </div>
+                                )}
+
                                 <div
                                     style={{
                                         display: "flex",
@@ -3535,6 +3599,17 @@ export default function HomePage() {
                                             >
                                                 {getCleanCardAddress(order.textAddress)}
                                             </div>
+
+                                            {order.coordinates && (
+                                                <div
+                                                    style={{
+                                                        fontSize: "10px",
+                                                        color: "#6b7280",
+                                                    }}
+                                                >
+                                                    {formatDistance(WAREHOUSE.coordinates, order.coordinates, distanceUnit)}
+                                                </div>
+                                            )}
 
                                             <div
                                                 style={{

@@ -14,6 +14,7 @@ type MeResponseData = {
     name: string;
     timezone: string;
   };
+  role?: string;
 };
 
 type Integration = {
@@ -46,6 +47,15 @@ type ApiResponse<T> = {
   success: boolean;
   message?: string;
   data?: T;
+};
+
+type SettingsSection = {
+  key: string;
+  title: string;
+  description: string;
+  href: string;
+  statusText: string;
+  statusTone: "ready" | "warning" | "neutral";
 };
 
 export default function SettingsPage() {
@@ -81,7 +91,7 @@ export default function SettingsPage() {
     return result.data as T;
   }
 
-  async function loadDashboard() {
+  async function loadOverview() {
     try {
       setLoading(true);
       setError("");
@@ -102,7 +112,7 @@ export default function SettingsPage() {
       setOrders(Array.isArray(ordersData) ? ordersData : []);
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Ошибка загрузки launch dashboard";
+        err instanceof Error ? err.message : "Ошибка загрузки overview";
 
       if (message !== "UNAUTHORIZED") {
         setError(message);
@@ -113,7 +123,7 @@ export default function SettingsPage() {
   }
 
   useEffect(() => {
-    loadDashboard();
+    loadOverview();
   }, []);
 
   const activeIntegrations = useMemo(
@@ -188,21 +198,94 @@ export default function SettingsPage() {
   const completedSteps = readinessSteps.filter((item) => item.done).length;
   const totalSteps = readinessSteps.length;
   const readinessPercent = Math.round((completedSteps / totalSteps) * 100);
-  const goLiveReady = completedSteps === totalSteps;
+  const projectReady = completedSteps === totalSteps;
 
   const nextPendingStep = readinessSteps.find((item) => !item.done) || null;
 
-  const finalChecklist = useMemo(
-    () => [
+  const settingsSections = useMemo<SettingsSection[]>(() => {
+    return [
       {
-        key: "active-integration",
-        text: "Есть хотя бы одна активная интеграция",
-        done: activeIntegrations.length > 0,
+        key: "general",
+        title: "Общие настройки",
+        description: "Базовые параметры компании: название, таймзона и общие параметры проекта.",
+        href: "/settings/general",
+        statusText: companyData?.company?.name ? "Базовые данные доступны" : "Нужно проверить",
+        statusTone: companyData?.company?.name ? "ready" : "warning",
       },
       {
-        key: "default-integration",
-        text: "Выбрана основная интеграция или есть активная интеграция",
-        done: Boolean(defaultIntegration || activeIntegrations.length > 0),
+        key: "features",
+        title: "Настройка функционала",
+        description: "Управление включением модулей и функций платформы для проекта.",
+        href: "/settings/features",
+        statusText: "Раздел готов к настройке",
+        statusTone: "neutral",
+      },
+      {
+        key: "team",
+        title: "Команда",
+        description: "Управление сотрудниками, ролями и доступом к системе.",
+        href: "/settings/staff",
+        statusText: "Раздел доступен",
+        statusTone: "ready",
+      },
+      {
+        key: "warehouses",
+        title: "Склады",
+        description: "Настройка складов, точек старта и операционной базы маршрутов.",
+        href: "/settings/warehouses",
+        statusText:
+          activeWarehouses.length > 0
+            ? `Активных складов: ${activeWarehouses.length}`
+            : "Склады еще не заведены",
+        statusTone: activeWarehouses.length > 0 ? "ready" : "warning",
+      },
+      {
+        key: "hours",
+        title: "Рабочее время",
+        description: "Рабочие дни, часы работы, доступность операций и окна обслуживания.",
+        href: "/settings/operations/hours",
+        statusText: "Раздел готов к настройке",
+        statusTone: "neutral",
+      },
+      {
+        key: "zones",
+        title: "Зоны (полигоны)",
+        description: "Геозоны, полигоны доставки, ограничения и будущая логика зонального ценообразования.",
+        href: "/settings/routing/zones",
+        statusText: "Раздел готов к настройке",
+        statusTone: "neutral",
+      },
+      {
+        key: "integrations",
+        title: "Интеграции",
+        description: "Подключение внешних систем и обмен заказами с платформой.",
+        href: "/settings/integrations",
+        statusText:
+          activeIntegrations.length > 0
+            ? `Активных интеграций: ${activeIntegrations.length}`
+            : "Интеграции еще не подключены",
+        statusTone: activeIntegrations.length > 0 ? "ready" : "warning",
+      },
+      {
+        key: "orders",
+        title: "Заказы",
+        description: "Проверка и просмотр базового потока заказов внутри проекта.",
+        href: "/settings/orders",
+        statusText:
+          orders.length > 0
+            ? `Заказов в системе: ${orders.length}`
+            : "Пока нет заказов",
+        statusTone: orders.length > 0 ? "ready" : "warning",
+      },
+    ];
+  }, [activeIntegrations.length, activeWarehouses.length, companyData?.company?.name, orders.length]);
+
+  const overviewChecklist = useMemo(
+    () => [
+      {
+        key: "integration",
+        text: "Есть хотя бы одна активная интеграция",
+        done: activeIntegrations.length > 0,
       },
       {
         key: "mapping",
@@ -216,15 +299,15 @@ export default function SettingsPage() {
       },
       {
         key: "order",
-        text: "Есть хотя бы один заказ для проверки рабочего сценария",
+        text: "Есть хотя бы один заказ",
         done: orders.length > 0,
       },
     ],
-    [activeIntegrations.length, activeWarehouses.length, defaultIntegration, mappings.length, orders.length]
+    [activeIntegrations.length, mappings.length, activeWarehouses.length, orders.length]
   );
 
-  const finalChecklistDone = finalChecklist.filter((item) => item.done).length;
-  const finalChecklistTotal = finalChecklist.length;
+  const overviewChecklistDone = overviewChecklist.filter((item) => item.done).length;
+  const overviewChecklistTotal = overviewChecklist.length;
 
   return (
     <main
@@ -243,15 +326,7 @@ export default function SettingsPage() {
           gap: "20px",
         }}
       >
-        <section
-          style={{
-            background: "#ffffff",
-            border: "1px solid #e5e7eb",
-            borderRadius: "20px",
-            padding: "24px",
-            boxShadow: "0 10px 30px rgba(15, 23, 42, 0.05)",
-          }}
-        >
+        <section style={panelStyle}>
           <div
             style={{
               display: "flex",
@@ -262,18 +337,7 @@ export default function SettingsPage() {
             }}
           >
             <div>
-              <div
-                style={{
-                  fontSize: "12px",
-                  fontWeight: 700,
-                  color: "#2563eb",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.08em",
-                  marginBottom: "10px",
-                }}
-              >
-                Launch Dashboard
-              </div>
+              <div style={sectionEyebrowStyle}>Settings Overview</div>
 
               <h1
                 style={{
@@ -284,7 +348,7 @@ export default function SettingsPage() {
                   color: "#111827",
                 }}
               >
-                Настройки компании
+                Обзор настроек проекта
               </h1>
 
               <p
@@ -297,8 +361,9 @@ export default function SettingsPage() {
                   maxWidth: "760px",
                 }}
               >
-                Это главный экран запуска клиента. Здесь видно, что уже готово
-                для работы, а что ещё нужно завершить до go-live.
+                Это главная точка входа в настройки проекта. Здесь видно, какие
+                разделы уже подготовлены, что настроено, а что еще требует
+                внимания перед полноценной работой.
               </p>
             </div>
 
@@ -306,8 +371,8 @@ export default function SettingsPage() {
               style={{
                 padding: "16px",
                 borderRadius: "18px",
-                border: goLiveReady ? "1px solid #bbf7d0" : "1px solid #dbeafe",
-                background: goLiveReady ? "#f0fdf4" : "#eff6ff",
+                border: projectReady ? "1px solid #bbf7d0" : "1px solid #dbeafe",
+                background: projectReady ? "#f0fdf4" : "#eff6ff",
                 minWidth: "280px",
               }}
             >
@@ -317,31 +382,31 @@ export default function SettingsPage() {
                   fontWeight: 700,
                   marginBottom: "8px",
                   textTransform: "uppercase",
-                  color: goLiveReady ? "#166534" : "#1d4ed8",
+                  color: projectReady ? "#166534" : "#1d4ed8",
                 }}
               >
-                Статус запуска
+                Статус проекта
               </div>
 
               <div
                 style={{
                   fontSize: "24px",
                   fontWeight: 800,
-                  color: goLiveReady ? "#166534" : "#1e3a8a",
+                  color: projectReady ? "#166534" : "#1e3a8a",
                   marginBottom: "6px",
                 }}
               >
-                {goLiveReady ? "Go-Live Ready" : `${readinessPercent}% готовности`}
+                {projectReady ? "Проект готов к работе" : `${readinessPercent}% готовности`}
               </div>
 
               <div
                 style={{
                   fontSize: "14px",
                   lineHeight: 1.6,
-                  color: goLiveReady ? "#166534" : "#1e3a8a",
+                  color: projectReady ? "#166534" : "#1e3a8a",
                 }}
               >
-                Завершено шагов: {completedSteps} из {totalSteps}
+                Выполнено ключевых шагов: {completedSteps} из {totalSteps}
               </div>
             </div>
           </div>
@@ -349,29 +414,19 @@ export default function SettingsPage() {
 
         {loading ? (
           <section style={panelStyle}>
-            <div style={loadingBoxStyle}>Загрузка launch dashboard...</div>
+            <div style={loadingBoxStyle}>Загрузка overview настроек...</div>
           </section>
         ) : error ? (
           <section style={panelStyle}>
-            <div
-              style={{
-                border: "1px solid #fecaca",
-                background: "#fef2f2",
-                color: "#b91c1c",
-                borderRadius: "16px",
-                padding: "16px",
-                fontSize: "14px",
-                lineHeight: 1.6,
-              }}
-            >
+            <div style={errorBoxStyle}>
               <div style={{ fontWeight: 700, marginBottom: "6px" }}>
-                Не удалось загрузить данные запуска
+                Не удалось загрузить overview настроек
               </div>
               <div>{error}</div>
 
               <button
                 type="button"
-                onClick={loadDashboard}
+                onClick={loadOverview}
                 style={secondaryButtonStyle}
               >
                 Обновить данные
@@ -407,41 +462,52 @@ export default function SettingsPage() {
                 }
               />
               <InfoCard
-                title="Первый заказ"
-                value={orders[0]?.title || "Ещё не создан"}
+                title="Заказы"
+                value={orders.length > 0 ? String(orders.length) : "0"}
                 description={
                   orders.length > 0
-                    ? `Всего заказов: ${orders.length}`
-                    : "Создай заказ для проверки реального сценария"
+                    ? `Последний пример: ${orders[0]?.title || "—"}`
+                    : "Пока нет заказов для проверки сценария"
                 }
               />
             </section>
 
             <section style={panelStyle}>
               <div style={{ marginBottom: "18px" }}>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "22px",
-                    lineHeight: 1.2,
-                    fontWeight: 800,
-                    color: "#111827",
-                  }}
-                >
-                  Готовность к запуску
-                </h2>
+                <h2 style={sectionTitleStyle}>Основные разделы настроек</h2>
 
-                <p
-                  style={{
-                    marginTop: "8px",
-                    marginBottom: 0,
-                    fontSize: "14px",
-                    lineHeight: 1.6,
-                    color: "#4b5563",
-                  }}
-                >
-                  Ниже только те шаги, которые реально нужны, чтобы довести
-                  клиента до рабочего состояния.
+                <p style={sectionDescriptionStyle}>
+                  Ниже находятся ключевые разделы, через которые настраивается
+                  проект. Это основная навигация для owner и admin.
+                </p>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+                  gap: "16px",
+                }}
+              >
+                {settingsSections.map((item) => (
+                  <SettingsSectionCard
+                    key={item.key}
+                    title={item.title}
+                    description={item.description}
+                    statusText={item.statusText}
+                    statusTone={item.statusTone}
+                    onClick={() => router.push(item.href)}
+                  />
+                ))}
+              </div>
+            </section>
+
+            <section style={panelStyle}>
+              <div style={{ marginBottom: "18px" }}>
+                <h2 style={sectionTitleStyle}>Готовность к запуску</h2>
+
+                <p style={sectionDescriptionStyle}>
+                  Это operational checklist для базового запуска проекта.
                 </p>
               </div>
 
@@ -475,48 +541,19 @@ export default function SettingsPage() {
             >
               <div style={panelStyle}>
                 <div style={{ marginBottom: "16px" }}>
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: "20px",
-                      fontWeight: 800,
-                      color: "#111827",
-                    }}
-                  >
-                    Что делать дальше
-                  </h2>
+                  <h2 style={sectionTitleStyle}>Что настроить дальше</h2>
                 </div>
 
-                {goLiveReady ? (
-                  <div
-                    style={{
-                      border: "1px solid #bbf7d0",
-                      background: "#f0fdf4",
-                      color: "#166534",
-                      borderRadius: "16px",
-                      padding: "16px",
-                      fontSize: "14px",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    Клиент прошёл минимальный путь запуска.
+                {projectReady ? (
+                  <div style={successInfoBoxStyle}>
+                    Базовые настройки проекта уже доведены до рабочего состояния.
                     <br />
-                    Теперь можно открывать карту и показывать продукт в рабочем
-                    сценарии.
+                    Дальше можно переходить к операционной работе, тестированию
+                    маршрутов и развитию более сложных сценариев.
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      border: "1px solid #dbeafe",
-                      background: "#eff6ff",
-                      color: "#1e3a8a",
-                      borderRadius: "16px",
-                      padding: "16px",
-                      fontSize: "14px",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    Следующий незавершённый шаг:
+                  <div style={infoBoxStyle}>
+                    Следующий незавершенный шаг:
                     <br />
                     <b>{nextPendingStep?.title || "Проверить настройки"}</b>
                     <br />
@@ -532,7 +569,7 @@ export default function SettingsPage() {
                     flexWrap: "wrap",
                   }}
                 >
-                  {!goLiveReady && nextPendingStep ? (
+                  {!projectReady && nextPendingStep ? (
                     <button
                       type="button"
                       onClick={() => router.push(nextPendingStep.actionHref)}
@@ -552,74 +589,39 @@ export default function SettingsPage() {
 
                   <button
                     type="button"
-                    onClick={loadDashboard}
+                    onClick={loadOverview}
                     style={secondaryButtonStyle}
                   >
-                    Обновить статус
+                    Обновить обзор
                   </button>
                 </div>
               </div>
 
               <div style={panelStyle}>
                 <div style={{ marginBottom: "16px" }}>
-                  <h2
-                    style={{
-                      margin: 0,
-                      fontSize: "20px",
-                      fontWeight: 800,
-                      color: "#111827",
-                    }}
-                  >
-                    Критерии go-live
-                  </h2>
+                  <h2 style={sectionTitleStyle}>Краткий чеклист</h2>
                 </div>
 
                 <div style={{ display: "grid", gap: "12px" }}>
-                  <ChecklistItem
-                    done={activeIntegrations.length > 0}
-                    text="Есть хотя бы одна активная интеграция"
-                  />
-                  <ChecklistItem
-                    done={mappings.length > 0}
-                    text="Создан хотя бы один mapping"
-                  />
-                  <ChecklistItem
-                    done={activeWarehouses.length > 0}
-                    text="Есть хотя бы один активный склад"
-                  />
-                  <ChecklistItem
-                    done={orders.length > 0}
-                    text="Создан хотя бы один заказ"
-                  />
+                  {overviewChecklist.map((item) => (
+                    <ChecklistItem
+                      key={item.key}
+                      done={item.done}
+                      text={item.text}
+                    />
+                  ))}
                 </div>
               </div>
             </section>
 
             <section style={panelStyle}>
               <div style={{ marginBottom: "16px" }}>
-                <h2
-                  style={{
-                    margin: 0,
-                    fontSize: "22px",
-                    lineHeight: 1.2,
-                    fontWeight: 800,
-                    color: "#111827",
-                  }}
-                >
-                  Финальная проверка перед стартом
-                </h2>
+                <h2 style={sectionTitleStyle}>Итоговая оценка состояния</h2>
 
-                <p
-                  style={{
-                    marginTop: "8px",
-                    marginBottom: 0,
-                    fontSize: "14px",
-                    lineHeight: 1.6,
-                    color: "#4b5563",
-                  }}
-                >
-                  Этот блок нужен, чтобы owner понял, можно ли уже реально
-                  начинать работу без помощи разработчика.
+                <p style={sectionDescriptionStyle}>
+                  Этот блок помогает быстро понять, можно ли уже использовать
+                  проект в реальном сценарии или еще нужно закрыть ключевые
+                  настройки.
                 </p>
               </div>
 
@@ -631,7 +633,7 @@ export default function SettingsPage() {
                 }}
               >
                 <div style={{ display: "grid", gap: "12px" }}>
-                  {finalChecklist.map((item) => (
+                  {overviewChecklist.map((item) => (
                     <FinalCheckItem
                       key={item.key}
                       done={item.done}
@@ -642,8 +644,8 @@ export default function SettingsPage() {
 
                 <div
                   style={{
-                    border: goLiveReady ? "1px solid #bbf7d0" : "1px solid #fde68a",
-                    background: goLiveReady ? "#f0fdf4" : "#fffbeb",
+                    border: projectReady ? "1px solid #bbf7d0" : "1px solid #fde68a",
+                    background: projectReady ? "#f0fdf4" : "#fffbeb",
                     borderRadius: "18px",
                     padding: "18px",
                   }}
@@ -654,7 +656,7 @@ export default function SettingsPage() {
                       fontWeight: 700,
                       textTransform: "uppercase",
                       marginBottom: "10px",
-                      color: goLiveReady ? "#166534" : "#92400e",
+                      color: projectReady ? "#166534" : "#92400e",
                     }}
                   >
                     Итоговый статус
@@ -665,28 +667,28 @@ export default function SettingsPage() {
                       fontSize: "24px",
                       fontWeight: 800,
                       lineHeight: 1.2,
-                      color: goLiveReady ? "#166534" : "#92400e",
+                      color: projectReady ? "#166534" : "#92400e",
                       marginBottom: "10px",
                     }}
                   >
-                    {goLiveReady ? "Готово к запуску" : "Нужно завершить настройку"}
+                    {projectReady ? "Настройки в рабочем состоянии" : "Нужно завершить настройку"}
                   </div>
 
                   <div
                     style={{
                       fontSize: "14px",
                       lineHeight: 1.7,
-                      color: goLiveReady ? "#166534" : "#92400e",
+                      color: projectReady ? "#166534" : "#92400e",
                       marginBottom: "16px",
                     }}
                   >
-                    Выполнено пунктов: {finalChecklistDone} из {finalChecklistTotal}
+                    Выполнено пунктов: {overviewChecklistDone} из {overviewChecklistTotal}
                   </div>
 
                   <button
                     type="button"
                     onClick={() => {
-                      if (goLiveReady) {
+                      if (projectReady) {
                         router.push("/map");
                         return;
                       }
@@ -700,14 +702,14 @@ export default function SettingsPage() {
                       height: "44px",
                       borderRadius: "12px",
                       border: "none",
-                      background: goLiveReady ? "#16a34a" : "#f59e0b",
+                      background: projectReady ? "#16a34a" : "#f59e0b",
                       color: "#ffffff",
                       fontSize: "14px",
                       fontWeight: 700,
                       cursor: "pointer",
                     }}
                   >
-                    {goLiveReady ? "Открыть карту" : "Завершить следующий шаг"}
+                    {projectReady ? "Открыть карту" : "Перейти к следующему шагу"}
                   </button>
                 </div>
               </div>
@@ -772,6 +774,113 @@ function InfoCard({
       >
         {description}
       </div>
+    </div>
+  );
+}
+
+function SettingsSectionCard({
+  title,
+  description,
+  statusText,
+  statusTone,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  statusText: string;
+  statusTone: "ready" | "warning" | "neutral";
+  onClick: () => void;
+}) {
+  const toneStyles =
+    statusTone === "ready"
+      ? {
+        badgeBackground: "#dcfce7",
+        badgeColor: "#166534",
+        buttonBackground: "#ffffff",
+        buttonColor: "#111827",
+        buttonBorder: "1px solid #d1d5db",
+      }
+      : statusTone === "warning"
+        ? {
+          badgeBackground: "#fef3c7",
+          badgeColor: "#92400e",
+          buttonBackground: "#2563eb",
+          buttonColor: "#ffffff",
+          buttonBorder: "none",
+        }
+        : {
+          badgeBackground: "#e5e7eb",
+          badgeColor: "#374151",
+          buttonBackground: "#ffffff",
+          buttonColor: "#111827",
+          buttonBorder: "1px solid #d1d5db",
+        };
+
+  return (
+    <div
+      style={{
+        border: "1px solid #e5e7eb",
+        background: "#ffffff",
+        borderRadius: "18px",
+        padding: "18px",
+      }}
+    >
+      <div
+        style={{
+          display: "inline-flex",
+          padding: "6px 10px",
+          borderRadius: "999px",
+          background: toneStyles.badgeBackground,
+          color: toneStyles.badgeColor,
+          fontSize: "12px",
+          fontWeight: 700,
+          marginBottom: "14px",
+        }}
+      >
+        {statusText}
+      </div>
+
+      <div
+        style={{
+          fontSize: "18px",
+          fontWeight: 800,
+          color: "#111827",
+          marginBottom: "10px",
+          lineHeight: 1.3,
+        }}
+      >
+        {title}
+      </div>
+
+      <div
+        style={{
+          fontSize: "14px",
+          color: "#4b5563",
+          lineHeight: 1.65,
+          minHeight: "76px",
+          marginBottom: "16px",
+        }}
+      >
+        {description}
+      </div>
+
+      <button
+        type="button"
+        onClick={onClick}
+        style={{
+          width: "100%",
+          height: "42px",
+          borderRadius: "12px",
+          border: toneStyles.buttonBorder,
+          background: toneStyles.buttonBackground,
+          color: toneStyles.buttonColor,
+          fontSize: "14px",
+          fontWeight: 700,
+          cursor: "pointer",
+        }}
+      >
+        Открыть раздел
+      </button>
     </div>
   );
 }
@@ -951,6 +1060,31 @@ function FinalCheckItem({
   );
 }
 
+const sectionEyebrowStyle: React.CSSProperties = {
+  fontSize: "12px",
+  fontWeight: 700,
+  color: "#2563eb",
+  textTransform: "uppercase",
+  letterSpacing: "0.08em",
+  marginBottom: "10px",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "22px",
+  lineHeight: 1.2,
+  fontWeight: 800,
+  color: "#111827",
+};
+
+const sectionDescriptionStyle: React.CSSProperties = {
+  marginTop: "8px",
+  marginBottom: 0,
+  fontSize: "14px",
+  lineHeight: 1.6,
+  color: "#4b5563",
+};
+
 const panelStyle: React.CSSProperties = {
   background: "#ffffff",
   border: "1px solid #e5e7eb",
@@ -966,6 +1100,36 @@ const loadingBoxStyle: React.CSSProperties = {
   background: "#f9fafb",
   fontSize: "14px",
   color: "#4b5563",
+};
+
+const errorBoxStyle: React.CSSProperties = {
+  border: "1px solid #fecaca",
+  background: "#fef2f2",
+  color: "#b91c1c",
+  borderRadius: "16px",
+  padding: "16px",
+  fontSize: "14px",
+  lineHeight: 1.6,
+};
+
+const infoBoxStyle: React.CSSProperties = {
+  border: "1px solid #dbeafe",
+  background: "#eff6ff",
+  color: "#1e3a8a",
+  borderRadius: "16px",
+  padding: "16px",
+  fontSize: "14px",
+  lineHeight: 1.7,
+};
+
+const successInfoBoxStyle: React.CSSProperties = {
+  border: "1px solid #bbf7d0",
+  background: "#f0fdf4",
+  color: "#166534",
+  borderRadius: "16px",
+  padding: "16px",
+  fontSize: "14px",
+  lineHeight: 1.7,
 };
 
 const primaryButtonStyle: React.CSSProperties = {

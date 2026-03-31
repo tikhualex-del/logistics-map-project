@@ -107,6 +107,7 @@ function mapRetailCrmOrderToMapOrder(
     courierId: null,
     courierName: null,
     coordinates,
+    capacityPoints: 0,
     createdAt: order.createdAt || null,
     deliveryDate: order.delivery?.date || null,
   };

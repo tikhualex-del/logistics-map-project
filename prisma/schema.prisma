@@ -12,11 +12,13 @@ datasource db {
 }
 
 model Company {
-  id                  String               @id @default(cuid())
+  id                  String                      @id @default(cuid())
   name                String
   timezone            String
-  isActive            Boolean              @default(true)
-  createdAt           DateTime             @default(now())
+  currency            String                      @default("RUB")
+  distanceUnit        String                      @default("km")
+  isActive            Boolean                     @default(true)
+  createdAt           DateTime                    @default(now())
 
   memberships         Membership[]
   sessions            Session[]
@@ -24,6 +26,11 @@ model Company {
   integrations        Integration[]
   integrationMappings IntegrationMapping[]
   orders              Order[]
+  auditLogs           AuditLog[]
+
+  loadUnits           CompanyLoadUnit[]
+  courierCapacityRules CompanyCourierCapacityRule[]
+  itemLoadMappings    IntegrationItemLoadMapping[]
 }
 
 model User {
@@ -36,6 +43,7 @@ model User {
 
   memberships  Membership[]
   sessions     Session[]
+  auditLogs    AuditLog[]   @relation("AuditLogActor")
 }
 
 model Membership {
@@ -88,19 +96,20 @@ model Warehouse {
 }
 
 model Integration {
-  id                       String               @id @default(cuid())
+  id                       String                       @id @default(cuid())
   companyId                String
   name                     String
   provider                 String
   baseUrl                  String?
   credentialsEncryptedJson String
-  isActive                 Boolean              @default(true)
-  isDefault                Boolean              @default(false)
-  createdAt                DateTime             @default(now())
+  isActive                 Boolean                      @default(true)
+  isDefault                Boolean                      @default(false)
+  createdAt                DateTime                     @default(now())
 
-  company                  Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                  Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   mappings                 IntegrationMapping[]
   orders                   Order[]
+  itemLoadMappings         IntegrationItemLoadMapping[]
 
   @@index([companyId])
 }
@@ -123,7 +132,7 @@ model IntegrationMapping {
 }
 
 model Order {
-  id                 String       @id @default(cuid())
+  id                 String            @id @default(cuid())
   companyId          String
   integrationId      String?
   warehouseId        String?
@@ -146,18 +155,119 @@ model Order {
 
   rawPayloadJson     String?
 
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
-  company            Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  integration        Integration? @relation(fields: [integrationId], references: [id], onDelete: SetNull)
-  warehouse          Warehouse?   @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration        Integration?      @relation(fields: [integrationId], references: [id], onDelete: SetNull)
+  warehouse          Warehouse?        @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
+
+  loadItems          OrderLoadItem[]
+  loadSnapshot       OrderLoadSnapshot?
+  capacityPoints     Int      @default(0)
+
 
   @@index([companyId])
   @@index([integrationId])
   @@index([warehouseId])
   @@index([externalId])
   @@unique([companyId, integrationId, externalId])
+}
+
+model CompanyLoadUnit {
+  id                  String                       @id @default(cuid())
+  companyId           String
+  name                String
+  code                String
+  description         String?
+  capacityPoints      Int
+  allowedCourierTypes String?
+  isActive            Boolean                      @default(true)
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  company             Company                      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  orderLoadItems      OrderLoadItem[]
+  itemMappings        IntegrationItemLoadMapping[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([companyId, isActive])
+}
+
+model CompanyCourierCapacityRule {
+  id                String   @id @default(cuid())
+  companyId         String
+  courierType       String
+  maxOrders         Int
+  maxCapacityPoints Int
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, courierType])
+  @@index([companyId])
+  @@index([companyId, isActive])
+}
+
+model IntegrationItemLoadMapping {
+  id                String           @id @default(cuid())
+  companyId         String
+  integrationId     String
+  externalFieldType String
+  matchType         String
+  externalValue     String
+  loadUnitId        String
+  multiplier        Int              @default(1)
+  priority          Int              @default(100)
+  isActive          Boolean          @default(true)
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  company           Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  integration       Integration      @relation(fields: [integrationId], references: [id], onDelete: Cascade)
+  loadUnit          CompanyLoadUnit  @relation(fields: [loadUnitId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([integrationId])
+  @@index([loadUnitId])
+  @@index([companyId, integrationId, isActive])
+  @@index([companyId, integrationId, externalFieldType, matchType])
+}
+
+model OrderLoadItem {
+  id              String           @id @default(cuid())
+  orderId         String
+  loadUnitId      String
+  quantity        Int
+  sourceMatchType String
+  sourceRawValue  String?
+  createdAt       DateTime         @default(now())
+
+  order           Order            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  loadUnit        CompanyLoadUnit  @relation(fields: [loadUnitId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@index([loadUnitId])
+}
+
+model OrderLoadSnapshot {
+  id                     String   @id @default(cuid())
+  orderId                String   @unique
+  totalCapacityPoints    Int      @default(0)
+  walkAllowed            Boolean?
+  bikeAllowed            Boolean?
+  carAllowed             Boolean?
+  recommendedCourierType String?
+  classificationStatus   String
+  summaryJson            String?
+  updatedAt              DateTime @updatedAt
+
+  order                  Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([classificationStatus])
 }
 
 model GeocodeCache {
@@ -218,4 +328,25 @@ model CronExecutionLock {
   updatedAt   DateTime @updatedAt
 
   @@index([lockedUntil])
+}
+
+model AuditLog {
+  id                 String   @id @default(cuid())
+  companyId          String
+  actorUserId        String
+  targetUserId       String?
+  targetMembershipId String?
+  action             String
+  metaJson           String?
+  createdAt          DateTime @default(now())
+
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  actorUser          User     @relation("AuditLogActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([actorUserId])
+  @@index([targetUserId])
+  @@index([targetMembershipId])
+  @@index([action])
+  @@index([createdAt])
 }
