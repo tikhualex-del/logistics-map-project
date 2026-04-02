@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 function BellIcon() {
   return (
@@ -23,7 +23,7 @@ function BellIcon() {
   );
 }
 
-export default function TopBar() {
+function TopBarContent() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -332,5 +332,13 @@ export default function TopBar() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function TopBar() {
+  return (
+    <Suspense fallback={null}>
+      <TopBarContent />
+    </Suspense>
   );
 }

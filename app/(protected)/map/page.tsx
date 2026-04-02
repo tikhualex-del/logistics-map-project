@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import YandexMap from "../../../components/map/YandexMap";
+import GoogleMap from "../../../components/map/GoogleMap";
+import TwoGisMap from "../../../components/map/TwoGisMap";
 import styles from "./page.module.css";
 
 type Order = {
     id: number;
     title: string;
     status: string;
+    internalStage?: string | null;
     textAddress?: string | null;
     deliveryTypeCode?: string;
     deliveryTypeName?: string;
@@ -90,6 +93,15 @@ type GeneralSettingsData = {
     distanceUnit: string;
 };
 
+type MapStatusConfigItem = {
+    rawStatus: string;
+    internalStage?: string;
+    label?: string;
+    color?: string;
+    iconUrl?: string;
+    isVisible?: boolean;
+};
+
 
 function hasCoordinates(order: Order): order is OrderWithCoordinates {
     return order.coordinates !== null;
@@ -140,6 +152,105 @@ function getStatusLabel(status: string) {
         default:
             return status;
     }
+}
+
+function getMapStatusLabel(
+    status: string,
+    internalStage: string | null | undefined,
+    mapStatusConfig: MapStatusConfigItem[]
+) {
+    const matchedByRawStatus = mapStatusConfig.find(
+        (item) => item.rawStatus === status
+    );
+
+    const matchedByInternalStage =
+        internalStage?.trim()
+            ? mapStatusConfig.find(
+                (item) =>
+                    (item.internalStage || "").trim() === internalStage.trim()
+            )
+            : null;
+
+    const matched = matchedByRawStatus || matchedByInternalStage;
+
+    return matched?.label?.trim() || getStatusLabel(status);
+}
+
+function getDeliveryCardAccentColor(
+    order: Order,
+    activeTab: "express" | "planned"
+) {
+    if (order.status === "complete") {
+        return "#2bbf8a";
+    }
+
+    if (activeTab === "express") {
+        return "#dc2626";
+    }
+
+    switch (order.status) {
+        case "special-confirmation":
+            return "#f08a24";
+        case "need-contract":
+            return "#f0a51f";
+        case "delivering":
+        case "courier-assigned":
+            return "#2563eb";
+        case "send-to-assembling":
+            return "#8b5cf6";
+        case "assembling-complete":
+            return "#1d4ed8";
+        default:
+            return "#6b7280";
+    }
+}
+
+function getMapStatusColor(
+    order: Order,
+    activeTab: "express" | "planned",
+    mapStatusConfig: MapStatusConfigItem[]
+) {
+    const matchedByRawStatus = mapStatusConfig.find(
+        (item) => item.rawStatus === order.status
+    );
+
+    const matchedByInternalStage =
+        order.internalStage?.trim()
+            ? mapStatusConfig.find(
+                (item) =>
+                    (item.internalStage || "").trim() === order.internalStage?.trim()
+            )
+            : null;
+
+    const matched = matchedByRawStatus || matchedByInternalStage;
+    const configuredColor = matched?.color?.trim();
+
+    if (configuredColor) {
+        return configuredColor;
+    }
+
+    return getDeliveryCardAccentColor(order, activeTab);
+}
+
+function isOrderVisibleOnMap(
+    order: Order,
+    mapStatusConfig: MapStatusConfigItem[]
+) {
+    const matchedByRawStatus = mapStatusConfig.find(
+        (item) => item.rawStatus === order.status
+    );
+
+    const matchedByInternalStage =
+        order.internalStage?.trim()
+            ? mapStatusConfig.find(
+                (item) =>
+                    (item.internalStage || "").trim() === order.internalStage?.trim()
+            )
+            : null;
+
+    const matched = matchedByRawStatus || matchedByInternalStage;
+
+    return matched?.isVisible ?? true;
 }
 
 function getCleanCardAddress(address?: string | null) {
@@ -199,16 +310,7 @@ function getCleanCardAddress(address?: string | null) {
     return [city, street, ...details].filter(Boolean).join(", ");
 }
 
-const STATUS_OPTIONS = [
-    { value: "new", label: "Новый" },
-    { value: "client-confirmed", label: "Согласовано с клиентом" },
-    { value: "special-confirmation", label: "Специальное согласование" },
-    { value: "send-to-assembling", label: "Передано в комплектацию" },
-    { value: "assembling-complete", label: "Укомплектован" },
-    { value: "courier-assigned", label: "Курьер назначен" },
-    { value: "delivering", label: "Доставляется" },
-    { value: "complete", label: "Выполнен" },
-];
+
 
 function timeToMinutes(time: string) {
     const [hours, minutes] = time.split(":").map(Number);
@@ -221,11 +323,12 @@ const TIME_OPTIONS = Array.from({ length: 48 }, (_, index) => {
     return `${hours}:${minutes}`;
 });
 
-export default function HomePage() {
+function HomePageContent() {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const [orders, setOrders] = useState<Order[]>([]);
+    const [mapStatusConfig, setMapStatusConfig] = useState<MapStatusConfigItem[]>([]);
     const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
     const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
     const statusButtonRef = useRef<HTMLButtonElement | null>(null);
@@ -367,6 +470,7 @@ export default function HomePage() {
     ];
 
     const [distanceUnit, setDistanceUnit] = useState<"km" | "mi">("km");
+    const [mapProvider, setMapProvider] = useState<"yandex" | "2gis" | "google">("yandex");
 
 
     async function handleLogout() {
@@ -761,9 +865,11 @@ export default function HomePage() {
             }
 
             setOrders(data.orders || []);
+            setMapStatusConfig(data.meta?.mapStatusConfig || []);
         } catch {
             setError("Не удалось загрузить заказы");
             setOrders([]);
+            setMapStatusConfig([]);
         } finally {
             setLoading(false);
         }
@@ -787,6 +893,12 @@ export default function HomePage() {
                 data.data.distanceUnit === "mi" ? "mi" : "km";
 
             setDistanceUnit(nextDistanceUnit);
+            const nextMapProvider =
+                data.data.mapProvider === "2gis" || data.data.mapProvider === "google"
+                    ? data.data.mapProvider
+                    : "yandex";
+
+            setMapProvider(nextMapProvider);
         } catch {
             setDistanceUnit("km");
         }
@@ -805,6 +917,7 @@ export default function HomePage() {
 
         if (!deliveryDate) {
             setOrders([]);
+            setMapStatusConfig([]);
             setLoading(false);
             return;
         }
@@ -983,6 +1096,46 @@ export default function HomePage() {
             name,
         }));
     }, [orders]);
+
+    const statusLabelByOrderId = useMemo(() => {
+        const result = new Map<number, string>();
+
+        orders.forEach((order) => {
+            result.set(
+                order.id,
+                getMapStatusLabel(order.status, order.internalStage, mapStatusConfig)
+            );
+        });
+
+        return result;
+    }, [orders, mapStatusConfig]);
+
+    const statusFilterOptions = useMemo(() => {
+        const map = new Map<string, string>();
+
+        orders.forEach((order) => {
+            const label = getMapStatusLabel(
+                order.status,
+                order.internalStage,
+                mapStatusConfig
+            );
+
+            if (!map.has(order.status)) {
+                map.set(order.status, label);
+            }
+        });
+
+        return Array.from(map.entries())
+            .map(([value, label]) => ({ value, label }))
+            .sort((a, b) => a.label.localeCompare(b.label, "ru"));
+    }, [orders, mapStatusConfig]);
+
+    const visibleOrdersForMap = useMemo(() => {
+        return activeTabOrders.filter(
+            (order) =>
+                hasCoordinates(order) && isOrderVisibleOnMap(order, mapStatusConfig)
+        );
+    }, [activeTabOrders, mapStatusConfig]);
 
     const mapRouteGroups = useMemo(() => {
         return savedRoutes.map((route, index) => ({
@@ -1912,7 +2065,7 @@ export default function HomePage() {
                     <span>Все статусы</span>
                 </label>
 
-                {STATUS_OPTIONS.map((status) => {
+                {statusFilterOptions.map((status) => {
                     const checked = selectedStatuses.includes(status.value);
 
                     return (
@@ -2146,7 +2299,11 @@ export default function HomePage() {
                     </div>
                 ) : (
                     sortedDeliveryPanelOrders.map((order) => {
-                        const accentColor = getDeliveryCardAccentColor(order, deliveryPanelTab);
+                        const accentColor = getMapStatusColor(
+                            order,
+                            deliveryPanelTab,
+                            mapStatusConfig
+                        );
                         const badgeLabel = getDeliveryCardBadgeLabel(order, deliveryPanelTab);
                         const isSelected = selectedOrders.includes(order.id);
 
@@ -2271,7 +2428,7 @@ export default function HomePage() {
                                             whiteSpace: "nowrap",
                                         }}
                                     >
-                                        {getStatusLabel(order.status)}
+                                        {statusLabelByOrderId.get(order.id) || getStatusLabel(order.status)}
                                     </div>
                                 </div>
                             </div>
@@ -3639,7 +3796,7 @@ export default function HomePage() {
                                                         flexShrink: 0,
                                                     }}
                                                 >
-                                                    {getStatusLabel(order.status)}
+                                                    {statusLabelByOrderId.get(order.id) || getStatusLabel(order.status)}
                                                 </div>
 
                                                 <div
@@ -3747,23 +3904,41 @@ export default function HomePage() {
                                 boxShadow: "0 8px 24px rgba(15,23,42,0.10)",
                             }}
                         >
-                            Всего заказов: {orders.length}
+                            Всего в активном табе: {activeTabOrders.length}
                             <br />
-                            С координатами: {activeTabOrders.filter(hasCoordinates).length}
+                            После фильтра: {filteredOrders.length}
+                            <br />
+                            С координатами после фильтра: {filteredOrders.filter(hasCoordinates).length}
+                            <br />
+                            Видно на карте: {visibleOrdersForMap.length}
                         </div>
-                        <YandexMap
-                            orders={deliveryDate ? activeTabOrders.filter(hasCoordinates) : []}
-                            routeOrders={deliveryDate ? routeOrders.filter(hasCoordinates) : []}
-                            routeGroups={deliveryDate ? mapRouteGroups : []}
-                            activeRouteGroupId={deliveryDate ? activeMapRouteGroupId : "all"}
-                            selectedOrderIds={deliveryDate ? selectedOrders : []}
-                            warehouse={WAREHOUSE}
-                            returnToWarehouse={false}
-                            onOrderCtrlClick={(orderId) => {
-                                if (!deliveryDate) return;
-                                toggleOrder(orderId);
-                            }}
-                        />
+                        {mapProvider === "yandex" && (
+                            <YandexMap
+                                orders={deliveryDate ? activeTabOrders.filter(hasCoordinates) : []}
+                                routeOrders={deliveryDate ? routeOrders.filter(hasCoordinates) : []}
+                                routeGroups={deliveryDate ? mapRouteGroups : []}
+                                activeRouteGroupId={deliveryDate ? activeMapRouteGroupId : "all"}
+                                selectedOrderIds={deliveryDate ? selectedOrders : []}
+                                warehouse={WAREHOUSE}
+                                returnToWarehouse={false}
+                                onOrderCtrlClick={(orderId) => {
+                                    if (!deliveryDate) return;
+                                    toggleOrder(orderId);
+                                }}
+                            />
+                        )}
+                        {mapProvider === "2gis" && (
+                            <TwoGisMap
+                                orders={deliveryDate ? filteredOrders.filter(hasCoordinates) : []}
+                                mapStatusConfig={mapStatusConfig}
+                            />
+                        )}
+
+                        {mapProvider === "google" && (
+                            <GoogleMap
+                                orders={deliveryDate ? activeTabOrders.filter(hasCoordinates) : []}
+                            />
+                        )}
                     </div>
                 )}
             </div>
@@ -3776,5 +3951,13 @@ export default function HomePage() {
             {routesBar}
             {deliveryDate && deliveryPanelTab === "planned" ? bottomOverlay : null}
         </main>
+    );
+}
+
+export default function HomePage() {
+    return (
+        <Suspense fallback={null}>
+            <HomePageContent />
+        </Suspense>
     );
 }

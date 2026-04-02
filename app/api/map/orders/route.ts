@@ -41,6 +41,15 @@ type RetailCrmOrder = {
   };
 };
 
+type MapStatusConfigItem = {
+  rawStatus: string;
+  internalStage?: string;
+  label?: string;
+  color?: string;
+  iconUrl?: string;
+  isVisible?: boolean;
+};
+
 function normalizeAddressKey(input: string) {
   return input
     .toLowerCase()
@@ -58,7 +67,8 @@ function normalizeAddressKey(input: string) {
 
 function mapRetailCrmOrderToMapOrder(
   order: RetailCrmOrder,
-  coordinates: [number, number] | null
+  coordinates: [number, number] | null,
+  mapStatusConfig: MapStatusConfigItem[]
 ) {
   const title = order.number?.trim()
     ? `Заказ #${order.number}`
@@ -95,10 +105,15 @@ function mapRetailCrmOrderToMapOrder(
     deliveryTypeName = deliveryTypeCode;
   }
 
+  const matchedMapStatus = mapStatusConfig.find(
+    (item) => item.rawStatus === (order.status || "unknown")
+  );
+
   return {
     id: order.id || 0,
     title,
     status: order.status || "unknown",
+    internalStage: matchedMapStatus?.internalStage || null,
     textAddress,
     deliveryTypeCode,
     deliveryTypeName,
@@ -253,6 +268,30 @@ export async function GET(request: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    const integrationMapping = await prisma.integrationMapping.findFirst({
+      where: {
+        companyId: session.companyId,
+        integrationId: integration.id,
+      },
+      select: {
+        mapStatusConfigJson: true,
+      },
+    });
+
+    let mapStatusConfig: MapStatusConfigItem[] = [];
+
+    if (integrationMapping?.mapStatusConfigJson) {
+      try {
+        const parsed = JSON.parse(integrationMapping.mapStatusConfigJson);
+
+        if (Array.isArray(parsed)) {
+          mapStatusConfig = parsed;
+        }
+      } catch (error) {
+        console.error("Failed to parse mapStatusConfigJson:", error);
+      }
     }
 
     const credentialsRaw = decrypt(integration.credentialsEncryptedJson);
@@ -430,7 +469,7 @@ export async function GET(request: NextRequest) {
             }
           }
 
-          return mapRetailCrmOrderToMapOrder(order, coordinates);
+          return mapRetailCrmOrderToMapOrder(order, coordinates, mapStatusConfig);
         })
       );
 
@@ -456,6 +495,7 @@ export async function GET(request: NextRequest) {
         count: mappedOrders.length,
         requestedDeliveryDate: deliveryDate,
         pagination: result.pagination,
+        mapStatusConfig,
       },
     });
   } catch (error) {

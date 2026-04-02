@@ -45,6 +45,7 @@ export async function POST(request: Request) {
 
     const warehouseMapJson = String(body.warehouseMapJson || "").trim();
     const courierMapJson = String(body.courierMapJson || "").trim();
+    const mapStatusConfigJson = String(body.mapStatusConfigJson || "").trim();
 
     if (!integrationId || !orderStatusMapJson || !deliveryTypeMapJson) {
       return NextResponse.json(
@@ -64,6 +65,7 @@ export async function POST(request: Request) {
       deliveryTypeMapJson,
       warehouseMapJson: warehouseMapJson || null,
       courierMapJson: courierMapJson || null,
+      mapStatusConfigJson: mapStatusConfigJson || undefined,
     });
 
     return NextResponse.json({

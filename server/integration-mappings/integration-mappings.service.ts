@@ -7,6 +7,7 @@ type CreateIntegrationMappingInput = {
   deliveryTypeMapJson: string;
   warehouseMapJson?: string | null;
   courierMapJson?: string | null;
+  mapStatusConfigJson?: string;
 };
 
 export async function getIntegrationMappingsByCompanyId(companyId: string) {
@@ -33,6 +34,7 @@ export async function createIntegrationMapping(
     deliveryTypeMapJson,
     warehouseMapJson,
     courierMapJson,
+    mapStatusConfigJson,
   } = input;
 
   const integration = await prisma.integration.findFirst({
@@ -47,14 +49,28 @@ export async function createIntegrationMapping(
     throw new Error("Integration not found in current company");
   }
 
-  return prisma.integrationMapping.create({
-    data: {
+  return prisma.integrationMapping.upsert({
+    where: {
+      companyId_integrationId: {
+        companyId,
+        integrationId,
+      },
+    },
+    update: {
+      orderStatusMapJson,
+      deliveryTypeMapJson,
+      warehouseMapJson: warehouseMapJson ?? null,
+      courierMapJson: courierMapJson ?? null,
+      mapStatusConfigJson: mapStatusConfigJson ?? null,
+    },
+    create: {
       companyId,
       integrationId,
       orderStatusMapJson,
       deliveryTypeMapJson,
       warehouseMapJson: warehouseMapJson ?? null,
       courierMapJson: courierMapJson ?? null,
+      mapStatusConfigJson: mapStatusConfigJson ?? null,
     },
     include: {
       integration: true,

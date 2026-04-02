@@ -6,6 +6,7 @@ type UpdateGeneralSettingsInput = {
   timezone: string;
   currency: string;
   distanceUnit: string;
+  mapProvider: string;
 };
 
 export async function getGeneralSettingsByCompanyId(companyId: string) {
@@ -19,6 +20,7 @@ export async function getGeneralSettingsByCompanyId(companyId: string) {
       timezone: true,
       currency: true,
       distanceUnit: true,
+      mapProvider: true,
     },
   });
 }
@@ -26,7 +28,7 @@ export async function getGeneralSettingsByCompanyId(companyId: string) {
 export async function updateGeneralSettingsByCompanyId(
   input: UpdateGeneralSettingsInput
 ) {
-  const { companyId, name, timezone, currency, distanceUnit } = input;
+  const { companyId, name, timezone, currency, distanceUnit, mapProvider } = input;
 
   return prisma.company.update({
     where: {
@@ -37,6 +39,7 @@ export async function updateGeneralSettingsByCompanyId(
       timezone,
       currency,
       distanceUnit,
+      mapProvider,
     },
     select: {
       id: true,
@@ -44,6 +47,7 @@ export async function updateGeneralSettingsByCompanyId(
       timezone: true,
       currency: true,
       distanceUnit: true,
+      mapProvider: true,
     },
   });
 }

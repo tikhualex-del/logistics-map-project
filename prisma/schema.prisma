@@ -17,6 +17,7 @@ model Company {
   timezone            String
   currency            String                      @default("RUB")
   distanceUnit        String                      @default("km")
+  mapProvider         String                      @default("yandex")
   isActive            Boolean                     @default(true)
   createdAt           DateTime                    @default(now())
 
@@ -122,11 +123,13 @@ model IntegrationMapping {
   deliveryTypeMapJson String
   warehouseMapJson    String?
   courierMapJson      String?
+  mapStatusConfigJson String?
   createdAt           DateTime     @default(now())
 
   company             Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   integration         Integration  @relation(fields: [integrationId], references: [id], onDelete: Cascade)
 
+  @@unique([companyId, integrationId])
   @@index([companyId])
   @@index([integrationId])
 }

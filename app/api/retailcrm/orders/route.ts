@@ -4,9 +4,64 @@ import { retailCrmGet } from "@/server/integrations/retailcrm-client.service";
 
 const geoCache = new Map<string, [number, number]>();
 
+type RetailCrmOrderAddress = {
+  countryIso?: string | null;
+  region?: string | null;
+  city?: string | null;
+  district?: string | null;
+  streetType?: string | null;
+  street?: string | null;
+  building?: string | null;
+  house?: string | null;
+  block?: string | null;
+  housing?: string | null;
+  flat?: string | null;
+  floor?: string | null;
+  geo?: {
+    latitude?: number | string | null;
+    longitude?: number | string | null;
+  } | null;
+};
+
+type RetailCrmOrderDeliveryData = {
+  courierId?: number | string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+};
+
+type RetailCrmOrderDelivery = {
+  code?: string | null;
+  deliveryType?: string | null;
+  service?: {
+    code?: string | null;
+  } | null;
+  time?: {
+    from?: string | null;
+    to?: string | null;
+  } | null;
+  address?: RetailCrmOrderAddress | null;
+  data?: RetailCrmOrderDeliveryData | null;
+};
+
+type RetailCrmOrderItem = {
+  id?: number | string | null;
+  number?: number | string | null;
+  status?: string | null;
+  delivery?: RetailCrmOrderDelivery | null;
+};
+
+type RetailCrmOrdersResponse = {
+  success?: boolean;
+  errorMsg?: string;
+  orders?: RetailCrmOrderItem[];
+  pagination?: {
+    totalPageCount?: number | string | null;
+  } | null;
+};
+
 async function geocodeAddress(address: string): Promise<{
   coords: [number, number] | null;
-  debug: any;
+  debug: unknown;
 }> {
   if (!address) {
     return {
@@ -88,12 +143,12 @@ async function loadAllOrdersFromRetailCRM(params: {
 }) {
   const { companyId, integrationId, deliveryDate } = params;
 
-  const allOrders: any[] = [];
+  const allOrders: RetailCrmOrderItem[] = [];
   let page = 1;
   let totalPages = 1;
 
   do {
-    const result = await retailCrmGet({
+    const result = await retailCrmGet<RetailCrmOrdersResponse>({
       companyId,
       integrationId,
       path: "/api/v5/orders",
@@ -111,7 +166,7 @@ async function loadAllOrdersFromRetailCRM(params: {
       throw new Error(data?.errorMsg || "RetailCRM returned an error");
     }
 
-    allOrders.push(...(data.orders || []));
+    allOrders.push(...(Array.isArray(data.orders) ? data.orders : []));
 
     totalPages = Number(data.pagination?.totalPageCount || 1);
     page += 1;
@@ -146,7 +201,7 @@ export async function GET(request: Request) {
     });
 
     const orders = await Promise.all(
-      retailOrders.map(async (order: any) => {
+      retailOrders.map(async (order) => {
         const lat = order.delivery?.address?.geo?.latitude;
         const lng = order.delivery?.address?.geo?.longitude;
 
@@ -200,9 +255,9 @@ export async function GET(request: Request) {
           .join(", ");
 
         let coordinates: [number, number] | null = null;
-        let geocodeDebug: any = { reason: "no-coordinates" };
+        let geocodeDebug: unknown = { reason: "no-coordinates" };
 
-        if (lat && lng) {
+        if (lat !== undefined && lat !== null && lng !== undefined && lng !== null) {
           coordinates = [Number(lat), Number(lng)];
           geocodeDebug = { reason: "from-retailcrm-geo" };
         } else if (textAddress) {
@@ -218,7 +273,7 @@ export async function GET(request: Request) {
 
         return {
           id: Number(order.id),
-          title: `Заказ #${order.number}`,
+          title: `Заказ #${order.number ?? ""}`,
           status: order.status || "",
           rawStatus: order.status || null,
           deliveryTypeCode: order.delivery?.code || "",

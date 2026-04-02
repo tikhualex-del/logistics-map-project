@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import TopBar from "./TopBar";
 
 const sidebarItems = [
@@ -17,7 +17,7 @@ type AppShellProps = {
 
 const publicRoutes = new Set(["/", "/login", "/register"]);
 
-export default function AppShell({ children }: AppShellProps) {
+function AppShellContent({ children }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isSidebarHovered, setIsSidebarHovered] = useState(false);
@@ -137,9 +137,7 @@ export default function AppShell({ children }: AppShellProps) {
                 <span
                   style={{
                     opacity: isSidebarHovered ? 1 : 0,
-                    transform: isSidebarHovered
-                      ? "translateX(0)"
-                      : "translateX(-8px)",
+                    transform: isSidebarHovered ? "translateX(0)" : "translateX(-8px)",
                     transition: "opacity 0.18s ease, transform 0.18s ease",
                     whiteSpace: "nowrap",
                     pointerEvents: isSidebarHovered ? "auto" : "none",
@@ -201,5 +199,13 @@ export default function AppShell({ children }: AppShellProps) {
 
       {children}
     </>
+  );
+}
+
+export default function AppShell(props: AppShellProps) {
+  return (
+    <Suspense fallback={null}>
+      <AppShellContent {...props} />
+    </Suspense>
   );
 }

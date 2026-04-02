@@ -6,6 +6,8 @@ import {
     updateGeneralSettingsByCompanyId,
 } from "@/server/settings/general-settings.service";
 
+const ALLOWED_MAP_PROVIDERS = ["yandex", "2gis", "google"] as const;
+
 export async function GET() {
     try {
         const session = await requireSession();
@@ -57,6 +59,7 @@ export async function PUT(request: Request) {
         const timezone = String(body?.timezone || "").trim();
         const currency = String(body?.currency || "").trim().toUpperCase();
         const distanceUnit = String(body?.distanceUnit || "").trim().toLowerCase();
+        const mapProvider = String(body?.mapProvider || "yandex").trim().toLowerCase();
 
         if (!name || !timezone || !currency || !distanceUnit) {
             return NextResponse.json(
@@ -78,12 +81,23 @@ export async function PUT(request: Request) {
             );
         }
 
+        if (!ALLOWED_MAP_PROVIDERS.includes(mapProvider as (typeof ALLOWED_MAP_PROVIDERS)[number])) {
+            return NextResponse.json(
+                {
+                    success: false,
+                    message: "mapProvider must be one of: yandex, 2gis, google",
+                },
+                { status: 400 }
+            );
+        }
+
         const updatedSettings = await updateGeneralSettingsByCompanyId({
             companyId: session.companyId,
             name,
             timezone,
             currency,
             distanceUnit,
+            mapProvider,
         });
 
         return NextResponse.json({

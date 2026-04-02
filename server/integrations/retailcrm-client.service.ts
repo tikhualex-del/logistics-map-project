@@ -36,7 +36,9 @@ function buildRetailCrmErrorMessage(error: unknown) {
   return "RetailCRM request failed";
 }
 
-export async function retailCrmGet(params: RetailCrmRequestParams) {
+export async function retailCrmGet<TResponse = unknown>(
+  params: RetailCrmRequestParams
+) {
   const { companyId, integrationId, path, searchParams = {} } = params;
 
   const integration = await getRetailCrmIntegrationCredentials({
@@ -56,10 +58,10 @@ export async function retailCrmGet(params: RetailCrmRequestParams) {
     url.searchParams.set(key, String(value));
   }
 
-  let data: unknown;
+  let data: TResponse;
 
   try {
-    data = await requestJson<unknown>({
+    data = await requestJson<TResponse>({
       url: url.toString(),
       method: "GET",
       timeoutMs: 10000,

@@ -2,6 +2,21 @@ import { NextResponse } from "next/server";
 import { requireSession } from "@/server/auth/require-session";
 import { retailCrmGet } from "@/server/integrations/retailcrm-client.service";
 
+type RetailCrmCourierItem = {
+  id?: number | string | null;
+  courierId?: number | string | null;
+  firstName?: string | null;
+  lastName?: string | null;
+  name?: string | null;
+  active?: boolean | null;
+};
+
+type RetailCrmCouriersResponse = {
+  success?: boolean;
+  errorMsg?: string;
+  couriers?: RetailCrmCourierItem[];
+};
+
 export async function GET(request: Request) {
   try {
     const session = await requireSession();
@@ -19,7 +34,7 @@ export async function GET(request: Request) {
       );
     }
 
-    const result = await retailCrmGet({
+    const result = await retailCrmGet<RetailCrmCouriersResponse>({
       companyId: session.companyId,
       integrationId,
       path: "/api/v5/reference/couriers",
@@ -41,7 +56,7 @@ export async function GET(request: Request) {
     const rawCouriers = Array.isArray(data.couriers) ? data.couriers : [];
 
     const couriers = rawCouriers
-      .map((courier: any) => {
+      .map((courier) => {
         const id = courier?.id ?? courier?.courierId ?? null;
         const firstName = courier?.firstName ?? "";
         const lastName = courier?.lastName ?? "";
@@ -56,7 +71,7 @@ export async function GET(request: Request) {
           active: courier?.active ?? true,
         };
       })
-      .filter((courier: any) => courier.id !== null);
+      .filter((courier) => courier.id !== null);
 
     return NextResponse.json({
       success: true,
