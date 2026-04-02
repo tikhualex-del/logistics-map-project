@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# logistics-map SaaS
 
-## Getting Started
+Проект `logistics-map` — multi-tenant SaaS платформа для логистики. 
 
-First, run the development server:
+- Управление курьерами
+- Интеграции с внешними CRM 
+- Импорт заказов и отображение на карте
+- Строительство простых маршрутов и поддержка курьеров
+
+## Архитектура
+
+### Стек
+- Frontend: Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS 4 (частично)
+- Backend: Next.js API routes + Node.js runtime
+- БД: PostgreSQL + Prisma ORM
+- State: Zustand (клиентский), server-first
+- Auth: Cookie-based (`session_token`), собственная сессия в БД
+
+### Мульти-тенантность
+- Вся логика и доступы разделены по `companyId` и `userId`
+- Основные модели: `Company`, `User`, `Membership`, `Session`, `Integration`, `IntegrationMapping`, `Warehouse`, `Order`
+
+### Проектная структура
+- `app/` страницы (Protected, admin, analytics, cabiner, couriers, routes, map, settings и др.)
+- `server/` бизнес-логика и API, разделенные по доменам
+- `lib/` общие утилиты (`http-client`, `observability`, `security`)
+- `components/` UI-слои
+- `store/` Zustand-хранилища
+- `prisma/` схема и миграции
+
+## Запуск проекта
+
+1. Установить зависимости:
+
+```bash
+npm install
+```
+
+2. Сгенерировать Prisma (один раз и после миграций):
+
+```bash
+npx prisma generate
+```
+
+3. Запустить миграции:
+
+```bash
+npx prisma migrate dev
+```
+
+4. Запустить dev-сервер:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Открыть в браузере: `http://localhost:3000`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Prod-сборка
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+## Переменные окружения
 
-To learn more about Next.js, take a look at the following resources:
+В файле `.env` (или в CI/CD) задать:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `DATABASE_URL=postgresql://...`
+- `OPENAI_API_KEY=...` (если используется AI)
+- `GOOGLE_AI_API_KEY=...` (если используется Google GenAI)
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+⚠️ ключи не должны быть доступны на клиенте
 
-## Deploy on Vercel
+## Основные сценарии пользователя
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. Регистрация (`/register`)
+2. Авторизация (`/login`)
+3. `/settings` - onboarding / настройка компании
+4. Конфигурация интеграций (retailCRM, др.)
+5. Маппинг полей (`/integration-mappings`)
+6. Создание/импорт складов и заказов
+7. `/map` - отображение заказов
+8. Построение маршрутов (`/routes`), работа курьеров
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## UX правила (главное)
+- Нет тупиков: пользователь видит, где он и что делать дальше
+- Empty states: всегда текст + действие
+- Ошибки: информативные, с новым шагом (не "Internal error")
+- Fail-safe: без данных интеграции/координат не ломается
+
+## Проверка готовности
+
+1. + логин/регистрация работают
+2. + создается компания/сессия
+3. + интеграции можно привязать и сохранить
+4. + создаются склады и заказы
+5. + на `/map` заказы отображаются
+6. + маршруты (метки, курьеры) строятся и сохраняются
+7. + нет NPE при отсутствии данных
+8. + запросы API возвращают корректные сообщения об ошибках
+
+## Быстрые команды
+
+- `npm run lint`
+- `npm test` (если есть тесты)
+- `npm run preview` (при необходимости)
+
+---
+
+#### Источники
+Рекомендуется читать `CLAUDE.md` для проектных требований и `QUICK_FIX_GUIDE.md` для локальной поддержки разработки.
