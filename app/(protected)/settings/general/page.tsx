@@ -184,8 +184,6 @@ const CURRENCY_OPTIONS = ["RUB", "EUR", "USD"];
 const DISTANCE_UNIT_OPTIONS = ["km", "mi"];
 const MAP_PROVIDER_OPTIONS = [
     { value: "yandex", label: "Yandex Maps" },
-    { value: "2gis", label: "2GIS Maps" },
-    { value: "google", label: "Google Maps" },
 ] as const;
 
 const INTERNAL_STAGE_OPTIONS = [
@@ -1485,9 +1483,9 @@ export default function GeneralSettingsPage() {
                             lineHeight: 1.7,
                         }}
                     >
-                        На этом шаге мы только сохраняем предпочтительный провайдер карты.
+                        На этом шаге сохраняется базовая конфигурация проекта: название компании, часовой пояс, валюта, единицы расстояния и провайдер карты.
                         <br />
-                        На следующем шаге подключим использование этой настройки на странице карты.
+                        Выбранный провайдер карты уже используется на странице карты.
                     </div>
                 </div>
             )}

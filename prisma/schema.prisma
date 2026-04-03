@@ -18,6 +18,7 @@ model Company {
   currency            String                      @default("RUB")
   distanceUnit        String                      @default("km")
   mapProvider         String                      @default("yandex")
+  workingHoursJson    String?
   isActive            Boolean                     @default(true)
   createdAt           DateTime                    @default(now())
 
@@ -27,6 +28,7 @@ model Company {
   integrations        Integration[]
   integrationMappings IntegrationMapping[]
   orders              Order[]
+  deliveryZones       DeliveryZone[]
   auditLogs           AuditLog[]
 
   loadUnits           CompanyLoadUnit[]
@@ -158,6 +160,8 @@ model Order {
 
   rawPayloadJson     String?
 
+  zoneId             String?
+
   createdAt          DateTime          @default(now())
   updatedAt          DateTime          @updatedAt
 
@@ -175,6 +179,26 @@ model Order {
   @@index([warehouseId])
   @@index([externalId])
   @@unique([companyId, integrationId, externalId])
+  @@index([zoneId])
+}
+
+model DeliveryZone {
+  id            String   @id @default(cuid())
+  companyId     String
+  name          String
+  color         String   @default("#2563eb")
+  polygonJson   String
+  price         Decimal? @db.Decimal(10, 2)
+  priority      Int      @default(100)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@index([companyId, priority])
 }
 
 model CompanyLoadUnit {

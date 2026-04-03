@@ -1131,10 +1131,9 @@ function HomePageContent() {
     }, [orders, mapStatusConfig]);
 
     const visibleOrdersForMap = useMemo(() => {
-        return activeTabOrders.filter(
-            (order) =>
-                hasCoordinates(order) && isOrderVisibleOnMap(order, mapStatusConfig)
-        );
+        return activeTabOrders
+            .filter(hasCoordinates)
+            .filter((order) => isOrderVisibleOnMap(order, mapStatusConfig));
     }, [activeTabOrders, mapStatusConfig]);
 
     const mapRouteGroups = useMemo(() => {
@@ -3914,11 +3913,12 @@ function HomePageContent() {
                         </div>
                         {mapProvider === "yandex" && (
                             <YandexMap
-                                orders={deliveryDate ? activeTabOrders.filter(hasCoordinates) : []}
+                                orders={deliveryDate ? visibleOrdersForMap : []}
                                 routeOrders={deliveryDate ? routeOrders.filter(hasCoordinates) : []}
                                 routeGroups={deliveryDate ? mapRouteGroups : []}
                                 activeRouteGroupId={deliveryDate ? activeMapRouteGroupId : "all"}
                                 selectedOrderIds={deliveryDate ? selectedOrders : []}
+                                mapStatusConfig={mapStatusConfig}
                                 warehouse={WAREHOUSE}
                                 returnToWarehouse={false}
                                 onOrderCtrlClick={(orderId) => {

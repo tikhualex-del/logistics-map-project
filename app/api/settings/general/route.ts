@@ -60,6 +60,8 @@ export async function PUT(request: Request) {
         const currency = String(body?.currency || "").trim().toUpperCase();
         const distanceUnit = String(body?.distanceUnit || "").trim().toLowerCase();
         const mapProvider = String(body?.mapProvider || "yandex").trim().toLowerCase();
+        const workingHoursJson =
+            body?.workingHoursJson === undefined ? undefined : String(body.workingHoursJson);
 
         if (!name || !timezone || !currency || !distanceUnit) {
             return NextResponse.json(
@@ -98,6 +100,7 @@ export async function PUT(request: Request) {
             currency,
             distanceUnit,
             mapProvider,
+            workingHoursJson,
         });
 
         return NextResponse.json({

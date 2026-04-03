@@ -43,10 +43,34 @@ type Order = {
   title: string;
 };
 
+type DeliveryZone = {
+  id: string;
+  name: string;
+  color: string;
+  polygonJson: string;
+  price: string | null;
+  priority: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ApiResponse<T> = {
   success: boolean;
   message?: string;
   data?: T;
+};
+
+type WorkingDay = {
+  day: string;
+  isWorking: boolean;
+  from: string;
+  to: string;
+};
+
+type WorkingHoursData = {
+  timezone: string;
+  days: WorkingDay[];
 };
 
 type SettingsSection = {
@@ -69,6 +93,8 @@ export default function SettingsPage() {
   const [mappings, setMappings] = useState<Mapping[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [workingHours, setWorkingHours] = useState<WorkingHoursData | null>(null);
+  const [zones, setZones] = useState<DeliveryZone[]>([]);
 
   async function fetchJson<T>(url: string): Promise<T> {
     const response = await fetch(url, {
@@ -96,20 +122,31 @@ export default function SettingsPage() {
       setLoading(true);
       setError("");
 
-      const [me, integrationsData, mappingsData, warehousesData, ordersData] =
-        await Promise.all([
-          fetchJson<MeResponseData>("/api/auth/me"),
-          fetchJson<Integration[]>("/api/integrations"),
-          fetchJson<Mapping[]>("/api/integration-mappings"),
-          fetchJson<Warehouse[]>("/api/warehouses"),
-          fetchJson<Order[]>("/api/orders"),
-        ]);
+      const [
+        me,
+        integrationsData,
+        mappingsData,
+        warehousesData,
+        ordersData,
+        workingHoursData,
+        zonesData,
+      ] = await Promise.all([
+        fetchJson<MeResponseData>("/api/auth/me"),
+        fetchJson<Integration[]>("/api/integrations"),
+        fetchJson<Mapping[]>("/api/integration-mappings"),
+        fetchJson<Warehouse[]>("/api/warehouses"),
+        fetchJson<Order[]>("/api/orders"),
+        fetchJson<WorkingHoursData>("/api/settings/working-hours"),
+        fetchJson<DeliveryZone[]>("/api/settings/routing/zones"),
+      ]);
 
       setCompanyData(me);
       setIntegrations(Array.isArray(integrationsData) ? integrationsData : []);
       setMappings(Array.isArray(mappingsData) ? mappingsData : []);
       setWarehouses(Array.isArray(warehousesData) ? warehousesData : []);
       setOrders(Array.isArray(ordersData) ? ordersData : []);
+      setWorkingHours(workingHoursData || null);
+      setZones(Array.isArray(zonesData) ? zonesData : []);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Ошибка загрузки overview";
@@ -145,7 +182,10 @@ export default function SettingsPage() {
     const step1Done = activeIntegrations.length > 0;
     const step2Done = mappings.length > 0;
     const step3Done = activeWarehouses.length > 0;
-    const step4Done = orders.length > 0;
+    const step4Done =
+      !!workingHours && workingHours.days.some((day) => day.isWorking);
+    const step5Done = zones.length > 0;
+    const step6Done = orders.length > 0;
 
     return [
       {
@@ -182,18 +222,47 @@ export default function SettingsPage() {
         actionHref: "/settings/warehouses",
       },
       {
-        key: "orders",
+        key: "working-hours",
         step: "Шаг 4",
-        title: "Есть первый заказ",
+        title: "Рабочее время настроено",
         done: step4Done,
         description: step4Done
+          ? "Рабочие дни и часы работы заданы"
+          : "Без рабочего времени система не сможет корректно учитывать окна работы и маршрутизацию.",
+        actionText: "Открыть рабочее время",
+        actionHref: "/settings/operations/hours",
+      },
+      {
+        key: "zones",
+        step: "Шаг 5",
+        title: "Зоны настроены",
+        done: step5Done,
+        description: step5Done
+          ? `Создано зон: ${zones.length}`
+          : "Без зон нельзя полноценно настроить географию доставки и стоимость по зонам.",
+        actionText: "Открыть зоны",
+        actionHref: "/settings/routing/zones",
+      },
+      {
+        key: "orders",
+        step: "Шаг 6",
+        title: "Есть первый заказ",
+        done: step6Done,
+        description: step6Done
           ? `Создано заказов: ${orders.length}`
           : "Хотя бы один заказ нужен, чтобы проверить реальный сценарий работы.",
         actionText: "Открыть заказы",
         actionHref: "/settings/orders",
       },
     ];
-  }, [activeIntegrations.length, activeWarehouses.length, mappings.length, orders.length]);
+  }, [
+    activeIntegrations.length,
+    activeWarehouses.length,
+    mappings.length,
+    orders.length,
+    workingHours,
+    zones.length,
+  ]);
 
   const completedSteps = readinessSteps.filter((item) => item.done).length;
   const totalSteps = readinessSteps.length;
@@ -207,15 +276,19 @@ export default function SettingsPage() {
       {
         key: "general",
         title: "Общие настройки",
-        description: "Базовые параметры компании: название, таймзона и общие параметры проекта.",
+        description:
+          "Базовые параметры компании: название, таймзона и общие параметры проекта.",
         href: "/settings/general",
-        statusText: companyData?.company?.name ? "Базовые данные доступны" : "Нужно проверить",
+        statusText: companyData?.company?.name
+          ? "Базовые данные доступны"
+          : "Нужно проверить",
         statusTone: companyData?.company?.name ? "ready" : "warning",
       },
       {
         key: "features",
         title: "Настройка функционала",
-        description: "Управление включением модулей и функций платформы для проекта.",
+        description:
+          "Управление включением модулей и функций платформы для проекта.",
         href: "/settings/features",
         statusText: "Раздел готов к настройке",
         statusTone: "neutral",
@@ -231,7 +304,8 @@ export default function SettingsPage() {
       {
         key: "warehouses",
         title: "Склады",
-        description: "Настройка складов, точек старта и операционной базы маршрутов.",
+        description:
+          "Настройка складов, точек старта и операционной базы маршрутов.",
         href: "/settings/warehouses",
         statusText:
           activeWarehouses.length > 0
@@ -242,23 +316,35 @@ export default function SettingsPage() {
       {
         key: "hours",
         title: "Рабочее время",
-        description: "Рабочие дни, часы работы, доступность операций и окна обслуживания.",
+        description:
+          "Рабочие дни, часы работы, доступность операций и окна обслуживания.",
         href: "/settings/operations/hours",
-        statusText: "Раздел готов к настройке",
-        statusTone: "neutral",
+        statusText:
+          workingHours && workingHours.days.some((day) => day.isWorking)
+            ? "Рабочее время настроено"
+            : "Нужно настроить рабочее время",
+        statusTone:
+          workingHours && workingHours.days.some((day) => day.isWorking)
+            ? "ready"
+            : "warning",
       },
       {
         key: "zones",
         title: "Зоны (полигоны)",
-        description: "Геозоны, полигоны доставки, ограничения и будущая логика зонального ценообразования.",
+        description:
+          "Геозоны, полигоны доставки, ограничения и будущая логика зонального ценообразования.",
         href: "/settings/routing/zones",
-        statusText: "Раздел готов к настройке",
-        statusTone: "neutral",
+        statusText:
+          zones.length > 0
+            ? `Зон создано: ${zones.length}`
+            : "Зоны еще не настроены",
+        statusTone: zones.length > 0 ? "ready" : "warning",
       },
       {
         key: "integrations",
         title: "Интеграции",
-        description: "Подключение внешних систем и обмен заказами с платформой.",
+        description:
+          "Подключение внешних систем и обмен заказами с платформой.",
         href: "/settings/integrations",
         statusText:
           activeIntegrations.length > 0
@@ -269,7 +355,8 @@ export default function SettingsPage() {
       {
         key: "orders",
         title: "Заказы",
-        description: "Проверка и просмотр базового потока заказов внутри проекта.",
+        description:
+          "Проверка и просмотр базового потока заказов внутри проекта.",
         href: "/settings/orders",
         statusText:
           orders.length > 0
@@ -278,7 +365,14 @@ export default function SettingsPage() {
         statusTone: orders.length > 0 ? "ready" : "warning",
       },
     ];
-  }, [activeIntegrations.length, activeWarehouses.length, companyData?.company?.name, orders.length]);
+  }, [
+    activeIntegrations.length,
+    activeWarehouses.length,
+    companyData?.company?.name,
+    orders.length,
+    workingHours,
+    zones.length,
+  ]);
 
   const overviewChecklist = useMemo(
     () => [
@@ -302,11 +396,31 @@ export default function SettingsPage() {
         text: "Есть хотя бы один заказ",
         done: orders.length > 0,
       },
+      {
+        key: "working-hours",
+        text: "Рабочее время настроено",
+        done:
+          !!workingHours && workingHours.days.some((day) => day.isWorking),
+      },
+      {
+        key: "zones",
+        text: "Создана хотя бы одна зона",
+        done: zones.length > 0,
+      },
     ],
-    [activeIntegrations.length, mappings.length, activeWarehouses.length, orders.length]
+    [
+      activeIntegrations.length,
+      mappings.length,
+      activeWarehouses.length,
+      orders.length,
+      workingHours,
+      zones.length,
+    ]
   );
 
-  const overviewChecklistDone = overviewChecklist.filter((item) => item.done).length;
+  const overviewChecklistDone = overviewChecklist.filter(
+    (item) => item.done
+  ).length;
   const overviewChecklistTotal = overviewChecklist.length;
 
   return (
@@ -371,7 +485,9 @@ export default function SettingsPage() {
               style={{
                 padding: "16px",
                 borderRadius: "18px",
-                border: projectReady ? "1px solid #bbf7d0" : "1px solid #dbeafe",
+                border: projectReady
+                  ? "1px solid #bbf7d0"
+                  : "1px solid #dbeafe",
                 background: projectReady ? "#f0fdf4" : "#eff6ff",
                 minWidth: "280px",
               }}
@@ -396,7 +512,9 @@ export default function SettingsPage() {
                   marginBottom: "6px",
                 }}
               >
-                {projectReady ? "Проект готов к работе" : `${readinessPercent}% готовности`}
+                {projectReady
+                  ? "Проект готов к работе"
+                  : `${readinessPercent}% готовности`}
               </div>
 
               <div
@@ -557,7 +675,8 @@ export default function SettingsPage() {
                     <br />
                     <b>{nextPendingStep?.title || "Проверить настройки"}</b>
                     <br />
-                    {nextPendingStep?.description || "Открой следующий раздел и заверши его."}
+                    {nextPendingStep?.description ||
+                      "Открой следующий раздел и заверши его."}
                   </div>
                 )}
 
@@ -644,7 +763,9 @@ export default function SettingsPage() {
 
                 <div
                   style={{
-                    border: projectReady ? "1px solid #bbf7d0" : "1px solid #fde68a",
+                    border: projectReady
+                      ? "1px solid #bbf7d0"
+                      : "1px solid #fde68a",
                     background: projectReady ? "#f0fdf4" : "#fffbeb",
                     borderRadius: "18px",
                     padding: "18px",
@@ -671,7 +792,9 @@ export default function SettingsPage() {
                       marginBottom: "10px",
                     }}
                   >
-                    {projectReady ? "Настройки в рабочем состоянии" : "Нужно завершить настройку"}
+                    {projectReady
+                      ? "Настройки в рабочем состоянии"
+                      : "Нужно завершить настройку"}
                   </div>
 
                   <div
@@ -682,7 +805,8 @@ export default function SettingsPage() {
                       marginBottom: "16px",
                     }}
                   >
-                    Выполнено пунктов: {overviewChecklistDone} из {overviewChecklistTotal}
+                    Выполнено пунктов: {overviewChecklistDone} из{" "}
+                    {overviewChecklistTotal}
                   </div>
 
                   <button
@@ -709,7 +833,9 @@ export default function SettingsPage() {
                       cursor: "pointer",
                     }}
                   >
-                    {projectReady ? "Открыть карту" : "Перейти к следующему шагу"}
+                    {projectReady
+                      ? "Открыть карту"
+                      : "Перейти к следующему шагу"}
                   </button>
                 </div>
               </div>

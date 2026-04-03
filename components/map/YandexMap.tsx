@@ -44,6 +44,24 @@ type MapRouteGroup = {
   orders: MapOrder[];
 };
 
+type MapStatusConfigItem = {
+  rawStatus: string;
+  internalStage?: string;
+  label?: string;
+  color?: string;
+  iconUrl?: string;
+  isVisible?: boolean;
+};
+
+type MapDeliveryZone = {
+  id: string;
+  name: string;
+  color: string;
+  polygonJson: string;
+  price?: string | null;
+  priority?: number;
+  isActive?: boolean;
+};
 
 type YandexMapProps = {
   orders: MapOrder[];
@@ -57,565 +75,35 @@ type YandexMapProps = {
   };
   returnToWarehouse?: boolean;
   onOrderCtrlClick?: (orderId: number) => void;
+  mapStatusConfig?: MapStatusConfigItem[];
+  deliveryZones?: MapDeliveryZone[];
+
+  drawMode?: boolean;
+  draftPolygonPoints?: [number, number][];
+  onMapClickPoint?: (point: [number, number]) => void;
+  onDraftPointDrag?: (index: number, point: [number, number]) => void;
 };
 
-function getStatusColor(status: string) {
-  switch (status) {
-    case "client-confirmed":
-      return "red";
-    case "special-confirmation":
-      return "red";
-    case "need-contract":
-      return "orange";
-    case "send-to-assembling":
-      return "orange";
-    case "assembling-complete":
-      return "gray";
-    case "courier-assigned":
-      return "blue";
-    case "delivering":
-      return "blue";
-    case "complete":
-      return "green";
-    default:
-      return "gray";
-  }
-}
-
-function getStatusIconSvg(
-  status: string,
-  isSelected: boolean,
-  deliveryTypeCode?: string
-) {
-  const selectedStroke = isSelected ? "#22c55e" : "transparent";
-  const selectedStrokeWidth = isSelected ? 3 : 0;
-
-  if (deliveryTypeCode === "express-delivery") {
-    return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      ${isSelected
-        ? `<rect
-              x="5"
-              y="5"
-              width="30"
-              height="30"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-        : ""
-      }
-      <rect
-        x="8"
-        y="8"
-        width="24"
-        height="24"
-        rx="8"
-        fill="#c81e1e"
-        stroke="white"
-        stroke-width="2.5"
-      />
-      <rect x="18.4" y="13" width="3.2" height="10" rx="1.6" fill="white"/>
-      <circle cx="20" cy="27" r="2" fill="white"/>
-    </svg>
+function getRouteStopBadge(color: string, index: number) {
+  return `
+    <div style="
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      background: ${color};
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      border: 2px solid #ffffff;
+      box-shadow: 0 2px 8px rgba(15,23,42,0.18);
+      box-sizing: border-box;
+    ">
+      ${index + 1}
+    </div>
   `;
-  }
-
-  switch (status) {
-    // Ожидание оплаты
-    case "need-contract":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <defs>
-        <filter id="needContractShadow" x="0" y="0" width="40" height="40" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#000000" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-
-      ${isSelected
-          ? `<rect
-              x="4"
-              y="4"
-              width="32"
-              height="32"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-
-      <g filter="url(#needContractShadow)">
-        <rect
-          x="6"
-          y="6"
-          width="28"
-          height="28"
-          rx="9"
-          fill="#f0a51f"
-          stroke="white"
-          stroke-width="2.8"
-        />
-      </g>
-
-      <rect x="12" y="14" width="16" height="10.5" rx="1.8" fill="white"/>
-      <circle cx="20" cy="19.25" r="2.3" fill="#f0a51f"/>
-      <circle cx="14.8" cy="16.6" r="0.9" fill="#f0a51f"/>
-      <circle cx="25.2" cy="16.6" r="0.9" fill="#f0a51f"/>
-      <circle cx="14.8" cy="21.9" r="0.9" fill="#f0a51f"/>
-      <circle cx="25.2" cy="21.9" r="0.9" fill="#f0a51f"/>
-      <path
-        d="M11.2 26.8h10"
-        stroke="white"
-        stroke-width="2.4"
-        stroke-linecap="round"
-      />
-    </svg>
-  `;
-
-    // Согласовано с клиентом
-    case "client-confirmed":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#f59e0b" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <circle cx="20" cy="20" r="8" fill="none" stroke="white" stroke-width="2.5"/>
-          <path d="M20 20V15" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-          <path d="M20 20L24 22" stroke="white" stroke-width="2.5" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    // Специальное согласование
-    case "special-confirmation":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <defs>
-        <filter id="specialConfirmationShadow" x="0" y="0" width="40" height="40" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#000000" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-
-      ${isSelected
-          ? `<rect
-              x="4"
-              y="4"
-              width="32"
-              height="32"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-
-      <g filter="url(#specialConfirmationShadow)">
-        <rect
-          x="6"
-          y="6"
-          width="28"
-          height="28"
-          rx="9"
-          fill="#f08a24"
-          stroke="white"
-          stroke-width="2.8"
-        />
-      </g>
-
-      <circle
-        cx="20"
-        cy="20"
-        r="7.2"
-        fill="none"
-        stroke="white"
-        stroke-width="2.4"
-        stroke-dasharray="2.2 2.2"
-      />
-      <path
-        d="M20 20v-4.2"
-        stroke="white"
-        stroke-width="2.4"
-        stroke-linecap="round"
-      />
-      <path
-        d="M20 20l3.1 2.5"
-        stroke="white"
-        stroke-width="2.4"
-        stroke-linecap="round"
-      />
-    </svg>
-  `;
-
-    // Передано в комплектацию
-    case "send-to-assembling":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <defs>
-        <filter id="sendToAssemblingShadow" x="0" y="0" width="40" height="40" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#000000" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-
-      ${isSelected
-          ? `<rect
-              x="4"
-              y="4"
-              width="32"
-              height="32"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-
-      <g filter="url(#sendToAssemblingShadow)">
-        <rect
-          x="6"
-          y="6"
-          width="28"
-          height="28"
-          rx="9"
-          fill="#8b5cf6"
-          stroke="white"
-          stroke-width="2.8"
-        />
-      </g>
-
-      <path
-        d="M14.2 15.2v10.2h6.2"
-        stroke="white"
-        stroke-width="2.3"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"
-      />
-      <path
-        d="M14.2 15.2h11.1v6"
-        stroke="white"
-        stroke-width="2.3"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"
-      />
-      <rect
-        x="17.4"
-        y="12.3"
-        width="4.8"
-        height="3"
-        rx="0.9"
-        fill="white"
-      />
-      <path
-        d="M21.5 22.1l2.1 2.2 4.3-4.6"
-        stroke="white"
-        stroke-width="2.4"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"
-      />
-    </svg>
-  `;
-
-    // Укомплектован
-    case "assembling-complete":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <defs>
-        <filter id="assemblingCompleteShadow" x="0" y="0" width="40" height="40" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#000000" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-
-      ${isSelected
-          ? `<rect
-              x="4"
-              y="4"
-              width="32"
-              height="32"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-
-      <g filter="url(#assemblingCompleteShadow)">
-        <rect
-          x="6"
-          y="6"
-          width="28"
-          height="28"
-          rx="9"
-          fill="#1d4ed8"
-          stroke="white"
-          stroke-width="2.8"
-        />
-      </g>
-
-      <rect x="12" y="12.5" width="16" height="15" rx="2.2" fill="white"/>
-      <rect x="13.8" y="15" width="12.4" height="3.2" rx="0.9" fill="#1d4ed8"/>
-      <rect x="17" y="21.2" width="6" height="2.2" rx="0.8" fill="#1d4ed8"/>
-    </svg>
-  `;
-
-    // Курьер назначен
-    case "courier-assigned":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <defs>
-        <filter id="courierAssignedShadow" x="0" y="0" width="40" height="40" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#000000" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-
-      ${isSelected
-          ? `<rect
-              x="4"
-              y="4"
-              width="32"
-              height="32"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-
-      <g filter="url(#courierAssignedShadow)">
-        <rect
-          x="6"
-          y="6"
-          width="28"
-          height="28"
-          rx="9"
-          fill="#60a5fa"
-          stroke="white"
-          stroke-width="2.8"
-        />
-      </g>
-
-      <circle cx="22.4" cy="15.2" r="3.1" fill="none" stroke="white" stroke-width="2"/>
-      <path
-        d="M19.5 25.8v-5.3c0-1.9 1.3-3.4 3.1-3.4s3.1 1.5 3.1 3.4v5.3"
-        fill="none"
-        stroke="white"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-      <path
-        d="M18.5 19.8l4 3.2 4-3.2"
-        fill="none"
-        stroke="white"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-
-      <rect
-        x="10.2"
-        y="18.2"
-        width="6.2"
-        height="7.8"
-        rx="1.1"
-        fill="none"
-        stroke="white"
-        stroke-width="2"
-      />
-      <path
-        d="M10.2 20.4h6.2"
-        stroke="white"
-        stroke-width="2"
-        stroke-linecap="round"
-      />
-      <path
-        d="M12.9 22.1v2.3"
-        stroke="white"
-        stroke-width="1.8"
-        stroke-linecap="round"
-      />
-    </svg>
-  `;
-
-    // Доставляется
-    case "delivering":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      <defs>
-        <filter id="deliveringShadow" x="0" y="0" width="40" height="40" filterUnits="userSpaceOnUse">
-          <feDropShadow dx="0" dy="2" stdDeviation="1.8" flood-color="#000000" flood-opacity="0.18"/>
-        </filter>
-      </defs>
-
-      ${isSelected
-          ? `<rect
-              x="4"
-              y="4"
-              width="32"
-              height="32"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-
-      <g filter="url(#deliveringShadow)">
-        <rect
-          x="6"
-          y="6"
-          width="28"
-          height="28"
-          rx="9"
-          fill="#2563eb"
-          stroke="white"
-          stroke-width="2.8"
-        />
-      </g>
-
-      <rect x="11.8" y="16.2" width="9.2" height="6.2" rx="1.1" fill="white"/>
-      <path d="M21 16.2h4.3l3 3.1v3.1H21z" fill="white"/>
-      <circle cx="15.2" cy="24.8" r="1.7" fill="#2563eb"/>
-      <circle cx="24.8" cy="24.8" r="1.7" fill="#2563eb"/>
-      <circle cx="15.2" cy="24.8" r="1" fill="white"/>
-      <circle cx="24.8" cy="24.8" r="1" fill="white"/>
-    </svg>
-  `;
-
-    // Выполнен
-    case "complete":
-      return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-      ${isSelected
-          ? `<rect
-              x="5"
-              y="5"
-              width="30"
-              height="30"
-              rx="10"
-              fill="none"
-              stroke="#22c55e"
-              stroke-width="3"
-            />`
-          : ""
-        }
-      <rect
-        x="8"
-        y="8"
-        width="24"
-        height="24"
-        rx="8"
-        fill="#2bbf8a"
-        stroke="white"
-        stroke-width="2.5"
-      />
-      <path
-        d="M14.5 20.5l4.2 4.2 7.8-8.2"
-        stroke="white"
-        stroke-width="3"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        fill="none"
-      />
-    </svg>
-  `;
-
-    // Выполнен: электронный сертификат
-    case "complete-electro-certificate":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#059669" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <path d="M13 20l4 4 10-10" stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M26 11l-2 4h3l-3 5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
-      `;
-
-    default:
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#6b7280" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <circle cx="20" cy="20" r="4" fill="white"/>
-        </svg>
-      `;
-
-    // Новый
-    case "new":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#f59e0b" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <path d="M20 13v14" stroke="white" stroke-width="3" stroke-linecap="round"/>
-          <path d="M13 20h14" stroke="white" stroke-width="3" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    // В работе
-    case "manager-processing":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#6b7280" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <circle cx="20" cy="20" r="5" fill="none" stroke="white" stroke-width="2.4"/>
-          <path d="M20 10v4M20 26v4M10 20h4M26 20h4M13 13l3 3M24 24l3 3M27 13l-3 3M13 27l3-3"
-            stroke="white" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    // Нет в наличии
-    case "no-product":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#dc2626" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <rect x="11" y="13" width="12" height="10" rx="1.5" fill="white"/>
-          <path d="M12 28l16-16" stroke="white" stroke-width="3" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    // Перезвонить
-    case "call-later":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#f97316" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <path d="M15 14c1 4 6 9 10 10" stroke="white" stroke-width="2.6" stroke-linecap="round"/>
-          <path d="M14 17l3-3M23 26l3-3" stroke="white" stroke-width="2.4" stroke-linecap="round"/>
-          <circle cx="25" cy="15" r="4" fill="none" stroke="white" stroke-width="2"/>
-          <path d="M25 15v-2M25 15l2 1" stroke="white" stroke-width="2" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    // Возврат с маршрута
-    case "returned-to-zero":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#e11d48" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <path d="M26 20H14" stroke="white" stroke-width="2.8" stroke-linecap="round"/>
-          <path d="M18 15l-5 5 5 5" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-        </svg>
-      `;
-
-    // Отказ клиента
-    case "cancel-client":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#ef4444" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <path d="M14 14l12 12M26 14L14 26" stroke="white" stroke-width="3" stroke-linecap="round"/>
-        </svg>
-      `;
-
-    // Отменён оператором
-    case "cancel-operator":
-      return `
-        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-          <circle cx="20" cy="20" r="16" fill="#b91c1c" stroke="${selectedStroke}" stroke-width="${selectedStrokeWidth}" />
-          <path d="M14 14l12 12M26 14L14 26" stroke="white" stroke-width="3.2" stroke-linecap="round"/>
-          <circle cx="20" cy="20" r="10" fill="none" stroke="white" stroke-width="1.5" opacity="0.7"/>
-        </svg>
-      `;
-  }
 }
 
 function getStatusLabel(status: string) {
@@ -665,25 +153,40 @@ function getStatusLabel(status: string) {
   }
 }
 
-function getRouteStopBadge(color: string, index: number) {
+function parseZonePolygon(polygonJson: string): [number, number][] | null {
+  try {
+    const parsed = JSON.parse(polygonJson);
+
+    if (!Array.isArray(parsed) || parsed.length < 3) {
+      return null;
+    }
+
+    const points = parsed.filter(
+      (point): point is [number, number] =>
+        Array.isArray(point) &&
+        point.length === 2 &&
+        typeof point[0] === "number" &&
+        Number.isFinite(point[0]) &&
+        typeof point[1] === "number" &&
+        Number.isFinite(point[1])
+    );
+
+    if (points.length < 3) {
+      return null;
+    }
+
+    return points;
+  } catch {
+    return null;
+  }
+}
+
+function getDraftPointSvg(index: number) {
   return `
-    <div style="
-      width: 26px;
-      height: 26px;
-      border-radius: 999px;
-      background: ${color};
-      color: #ffffff;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 12px;
-      font-weight: 700;
-      border: 2px solid #ffffff;
-      box-shadow: 0 2px 8px rgba(15,23,42,0.18);
-      box-sizing: border-box;
-    ">
-      ${index + 1}
-    </div>
+    <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">
+      <circle cx="14" cy="14" r="10" fill="#2563eb" stroke="white" stroke-width="3" />
+      <text x="14" y="18" text-anchor="middle" font-size="10" font-weight="700" fill="white">${index + 1}</text>
+    </svg>
   `;
 }
 
@@ -696,9 +199,16 @@ export default function YandexMap({
   warehouse,
   returnToWarehouse = false,
   onOrderCtrlClick,
+  mapStatusConfig = [],
+  deliveryZones = [],
+  drawMode = false,
+  draftPolygonPoints = [],
+  onMapClickPoint,
+  onDraftPointDrag,
 }: YandexMapProps) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
+  const mapClickHandlerRef = useRef<((e: any) => void) | null>(null);
 
   const ordersKey = useMemo(() => {
     return JSON.stringify(
@@ -732,6 +242,21 @@ export default function YandexMap({
     );
   }, [routeGroups]);
 
+  const deliveryZonesKey = useMemo(() => {
+    return JSON.stringify(
+      deliveryZones.map((zone) => ({
+        id: zone.id,
+        color: zone.color,
+        polygonJson: zone.polygonJson,
+        isActive: zone.isActive,
+      }))
+    );
+  }, [deliveryZones]);
+
+  const draftPolygonKey = useMemo(() => {
+    return JSON.stringify(draftPolygonPoints);
+  }, [draftPolygonPoints]);
+
   useEffect(() => {
     const apiKey = process.env.NEXT_PUBLIC_YANDEX_MAPS_API_KEY;
 
@@ -740,7 +265,7 @@ export default function YandexMap({
       return;
     }
 
-    const renderOrdersOnMap = () => {
+    const renderMap = () => {
       const ymaps = (window as any).ymaps;
 
       if (!ymaps || !mapRef.current) return;
@@ -758,13 +283,148 @@ export default function YandexMap({
 
         const map = mapInstanceRef.current;
 
+        if (mapClickHandlerRef.current) {
+          map.events.remove("click", mapClickHandlerRef.current);
+          mapClickHandlerRef.current = null;
+        }
+
+        if (drawMode && onMapClickPoint) {
+          const clickHandler = (e: any) => {
+            const coords = e.get("coords");
+
+            if (
+              Array.isArray(coords) &&
+              coords.length === 2 &&
+              typeof coords[0] === "number" &&
+              typeof coords[1] === "number"
+            ) {
+              onMapClickPoint([coords[0], coords[1]]);
+            }
+          };
+
+          map.events.add("click", clickHandler);
+          mapClickHandlerRef.current = clickHandler;
+        }
+
         map.geoObjects.removeAll();
 
+        const allBoundsPoints: [number, number][] = [];
         const coordinateMap = new Map<string, number>();
 
         if (warehouse) {
           const warehouseKey = `${warehouse.coordinates[0].toFixed(5)}_${warehouse.coordinates[1].toFixed(5)}`;
           coordinateMap.set(warehouseKey, 1);
+          allBoundsPoints.push(warehouse.coordinates);
+        }
+
+        deliveryZones.forEach((zone) => {
+          if (zone.isActive === false) {
+            return;
+          }
+
+          const polygonPoints = parseZonePolygon(zone.polygonJson);
+
+          if (!polygonPoints) {
+            return;
+          }
+
+          polygonPoints.forEach((point) => {
+            allBoundsPoints.push(point);
+          });
+
+          const polygon = new ymaps.Polygon(
+            [polygonPoints],
+            {
+              balloonContent: `
+                <div style="max-width: 260px; line-height: 1.45; font-size: 14px;">
+                  <div style="font-weight: 700; margin-bottom: 6px;">
+                    ${zone.name}
+                  </div>
+                  <div style="margin-bottom: 4px;">
+                    <span style="color:#666;">Стоимость:</span> ${zone.price ?? "Не задана"}
+                  </div>
+                  <div>
+                    <span style="color:#666;">Приоритет:</span> ${zone.priority ?? "Не задан"}
+                  </div>
+                </div>
+              `,
+              hintContent: zone.name,
+            },
+            {
+              fillColor: `${zone.color}33`,
+              strokeColor: zone.color || "#2563eb",
+              strokeWidth: 3,
+              strokeOpacity: 0.9,
+            }
+          );
+
+          map.geoObjects.add(polygon);
+        });
+
+        if (draftPolygonPoints.length > 0) {
+          draftPolygonPoints.forEach((point, index) => {
+            allBoundsPoints.push(point);
+
+            const draftPointPlacemark = new ymaps.Placemark(
+              point,
+              {
+                hintContent: `Точка ${index + 1}`,
+              },
+              {
+                iconLayout: "default#image",
+                iconImageHref: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+                  getDraftPointSvg(index)
+                )}`,
+                iconImageSize: [28, 28],
+                iconImageOffset: [-14, -14],
+                draggable: Boolean(onDraftPointDrag),
+              }
+            );
+
+            if (onDraftPointDrag) {
+              draftPointPlacemark.events.add("dragend", () => {
+                const coords = draftPointPlacemark.geometry.getCoordinates();
+
+                if (
+                  Array.isArray(coords) &&
+                  coords.length === 2 &&
+                  typeof coords[0] === "number" &&
+                  typeof coords[1] === "number"
+                ) {
+                  onDraftPointDrag(index, [coords[0], coords[1]]);
+                }
+              });
+            }
+
+            map.geoObjects.add(draftPointPlacemark);
+          });
+
+          if (draftPolygonPoints.length >= 2) {
+            const draftLine = new ymaps.Polyline(draftPolygonPoints, {}, {
+              strokeColor: "#2563eb",
+              strokeWidth: 3,
+              strokeOpacity: 0.85,
+            });
+
+            map.geoObjects.add(draftLine);
+          }
+
+          if (draftPolygonPoints.length >= 3) {
+            const draftPolygon = new ymaps.Polygon(
+              [draftPolygonPoints],
+              {
+                hintContent: "Черновик полигона",
+              },
+              {
+                fillColor: "#2563eb22",
+                strokeColor: "#2563eb",
+                strokeWidth: 3,
+                strokeOpacity: 0.95,
+              }
+            );
+
+            map.geoObjects.add(draftPolygon);
+          }
         }
 
         orders.forEach((order) => {
@@ -780,6 +440,14 @@ export default function YandexMap({
             order.coordinates[0] + offset,
             order.coordinates[1] + offset,
           ];
+
+          allBoundsPoints.push(adjustedCoordinates);
+
+          const matchedStatusConfig = mapStatusConfig.find(
+            (item) => item.rawStatus === order.status
+          );
+
+          const customIconUrl = matchedStatusConfig?.iconUrl?.trim() || "";
 
           const placemark = new ymaps.Placemark(
             adjustedCoordinates,
@@ -818,13 +486,20 @@ export default function YandexMap({
   </div>
 `,
               hintContent: `${order.title} — ${getStatusLabel(order.status)}${order.deliveryFrom && order.deliveryTo
-                ? ` — ${order.deliveryFrom} — ${order.deliveryTo}`
-                : ""
+                  ? ` — ${order.deliveryFrom} — ${order.deliveryTo}`
+                  : ""
                 }`,
             },
-            {
-              preset: isSelected ? "islands#greenDotIcon" : "islands#blueDotIcon",
-            }
+            customIconUrl
+              ? {
+                iconLayout: "default#image",
+                iconImageHref: customIconUrl,
+                iconImageSize: isSelected ? [44, 44] : [40, 40],
+                iconImageOffset: isSelected ? [-22, -22] : [-20, -20],
+              }
+              : {
+                preset: isSelected ? "islands#greenDotIcon" : "islands#blueDotIcon",
+              }
           );
 
           placemark.events.add("click", (e: any) => {
@@ -872,6 +547,7 @@ export default function YandexMap({
 
           map.geoObjects.add(warehousePlacemark);
         }
+
         if (routeGroups.length > 0) {
           const routeBounds: [number, number][] = [];
 
@@ -911,8 +587,7 @@ export default function YandexMap({
                     }
                       </div>
                       <div>
-                        <span style="color:#666;">Адрес:</span> ${order.textAddress || "не указан"
-                    }
+                        <span style="color:#666;">Адрес:</span> ${order.textAddress || "не указан"}
                       </div>
                     </div>
                   `,
@@ -965,6 +640,7 @@ export default function YandexMap({
             });
           }
         }
+
         if (routeGroups.length === 0 && routeOrders.length <= 1 && orders.length > 0) {
           const bounds = map.geoObjects.getBounds();
 
@@ -975,6 +651,7 @@ export default function YandexMap({
             });
           }
         }
+
         if (routeGroups.length === 0) {
           routeOrders.forEach((order, index) => {
             const routeNumberPlacemark = new ymaps.Placemark(
@@ -1034,6 +711,18 @@ export default function YandexMap({
               });
           }
         }
+
+        if (
+          routeGroups.length === 0 &&
+          routeOrders.length === 0 &&
+          orders.length === 0 &&
+          allBoundsPoints.length > 0
+        ) {
+          map.setBounds(ymaps.util.bounds.fromPoints(allBoundsPoints), {
+            checkZoomRange: true,
+            zoomMargin: 40,
+          });
+        }
       });
     };
 
@@ -1042,7 +731,7 @@ export default function YandexMap({
     ) as HTMLScriptElement | null;
 
     if (existingScript) {
-      renderOrdersOnMap();
+      renderMap();
       return;
     }
 
@@ -1050,17 +739,29 @@ export default function YandexMap({
     script.src = `https://api-maps.yandex.ru/2.1/?apikey=${apiKey}&lang=ru_RU`;
     script.async = true;
     script.dataset.yandexMaps = "true";
-    script.onload = renderOrdersOnMap;
+    script.onload = renderMap;
 
     document.body.appendChild(script);
-  }, [
+    }, [
     ordersKey,
     routeOrdersKey,
     routeGroupsKey,
+    deliveryZonesKey,
+    draftPolygonKey,
     activeRouteGroupId,
     orders,
     routeOrders,
     routeGroups,
+    deliveryZones,
+    draftPolygonPoints,
+    drawMode,
+    selectedOrderIds,
+    warehouse,
+    returnToWarehouse,
+    onOrderCtrlClick,
+    onMapClickPoint,
+    onDraftPointDrag,
+    mapStatusConfig,
   ]);
 
   return (
@@ -1070,6 +771,7 @@ export default function YandexMap({
         width: "100%",
         height: "100%",
         minHeight: "320px",
+        cursor: drawMode ? "crosshair" : "default",
       }}
     />
   );
