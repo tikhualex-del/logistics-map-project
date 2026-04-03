@@ -59,17 +59,6 @@ async function requestYandexGeocoder(
     return null;
   }
 
-  console.log(
-    "YANDEX GEOCODER CANDIDATES:",
-    members.map((item: any) => ({
-      text: item?.GeoObject?.metaDataProperty?.GeocoderMetaData?.text || null,
-      kind: item?.GeoObject?.metaDataProperty?.GeocoderMetaData?.kind || null,
-      precision:
-        item?.GeoObject?.metaDataProperty?.GeocoderMetaData?.precision || null,
-      pos: item?.GeoObject?.Point?.pos || null,
-    }))
-  );
-
   const firstGeoObject = members[0]?.GeoObject;
   const pos = firstGeoObject?.Point?.pos;
   const displayName =
@@ -125,11 +114,7 @@ export async function geocodeAddressWithNominatim(
   let bestResult: Exclude<GeocodeAddressResult, null> | null = null;
 
   for (const address of uniqueAddresses) {
-    console.log("GEOCODER TRY ADDRESS:", address);
-
     const result = await requestYandexGeocoder(address);
-
-    console.log("GEOCODER TRY RESULT:", result);
 
     if (!result) {
       continue;

@@ -1,24 +1,32 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createOwnerBundle } from "@/server/auth/auth.service";
+
+const registerSchema = z.object({
+  companyName: z.string().trim().min(2, "Название компании — минимум 2 символа"),
+  fullName: z.string().trim().min(2, "Имя — минимум 2 символа"),
+  email: z.email("Некорректный email").transform((v) => v.trim().toLowerCase()),
+  password: z.string().min(8, "Пароль — минимум 8 символов"),
+});
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
 
-    const companyName = String(body.companyName || "").trim();
-    const fullName = String(body.fullName || "").trim();
-    const email = String(body.email || "").trim().toLowerCase();
-    const password = String(body.password || "").trim();
+    const parsed = registerSchema.safeParse(body);
 
-    if (!companyName || !fullName || !email || !password) {
+    if (!parsed.success) {
       return NextResponse.json(
         {
           success: false,
-          message: "companyName, fullName, email and password are required",
+          message: parsed.error.issues[0]?.message || "Некорректные данные",
+          errors: parsed.error.flatten(),
         },
         { status: 400 }
       );
     }
+
+    const { companyName, fullName, email, password } = parsed.data;
 
     const result = await createOwnerBundle({
       companyName,

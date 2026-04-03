@@ -116,8 +116,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log("AI REQUEST FROM COMPANY:", session.companyId);
-
     const body = await req.json();
 
     const prompt = String(body?.prompt || "").trim();

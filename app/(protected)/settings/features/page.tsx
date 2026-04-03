@@ -36,7 +36,62 @@ type IntegrationOption = {
     id: string;
     name: string;
     provider: string;
+    isDefault?: boolean;
 };
+
+type MapStatusRow = {
+    id: string;
+    rawStatus: string;
+    internalStage: string;
+    label: string;
+    color: string;
+    iconUrl: string;
+    isVisible: boolean;
+};
+
+type IntegrationMappingItem = {
+    id: string;
+    integrationId: string;
+    orderStatusMapJson: string;
+    deliveryTypeMapJson: string;
+    warehouseMapJson?: string | null;
+    courierMapJson?: string | null;
+    mapStatusConfigJson?: string | null;
+};
+
+const INTERNAL_STAGE_OPTIONS = [
+    { value: "NEW", label: "Новый" },
+    { value: "TO_ASSEMBLY", label: "На сборке" },
+    { value: "READY_FOR_DELIVERY", label: "Готов к выезду" },
+    { value: "IN_DELIVERY", label: "В пути" },
+    { value: "DELIVERED", label: "Доставлен" },
+    { value: "CANCELLED", label: "Отменен" },
+    { value: "RETURNED", label: "Возврат" },
+];
+
+const DEFAULT_MAP_STATUS_ROWS: MapStatusRow[] = [
+    { id: "status-new", rawStatus: "new", internalStage: "NEW", label: "Новый", color: "#f59e0b", iconUrl: "", isVisible: true },
+    { id: "status-delivering", rawStatus: "delivering", internalStage: "IN_DELIVERY", label: "Доставляется", color: "#2563eb", iconUrl: "", isVisible: true },
+    { id: "status-complete", rawStatus: "complete", internalStage: "DELIVERED", label: "Выполнен", color: "#2bbf8a", iconUrl: "", isVisible: true },
+];
+
+function cloneDefaultMapStatusRows(): MapStatusRow[] {
+    return DEFAULT_MAP_STATUS_ROWS.map((item) => ({ ...item }));
+}
+
+function normalizeLoadedMapStatusRows(input: unknown): MapStatusRow[] {
+    if (!Array.isArray(input)) return cloneDefaultMapStatusRows();
+    const rows = input.map((item: any, index: number) => ({
+        id: String(item?.id || `status-loaded-${index}`),
+        rawStatus: String(item?.rawStatus || ""),
+        internalStage: String(item?.internalStage || ""),
+        label: String(item?.label || ""),
+        color: String(item?.color || "#2563eb"),
+        iconUrl: String(item?.iconUrl || ""),
+        isVisible: item?.isVisible ?? true,
+    }));
+    return rows.length > 0 ? rows : cloneDefaultMapStatusRows();
+}
 
 type ItemLoadMapping = {
     id: string;
@@ -107,6 +162,106 @@ export default function FeaturesSettingsPage() {
     const [multiplier, setMultiplier] = useState("1");
     const [priority, setPriority] = useState("100");
 
+    // Map status settings state
+    const [mapStatusRows, setMapStatusRows] = useState<MapStatusRow[]>(cloneDefaultMapStatusRows());
+    const [selectedMapStatusIntegrationId, setSelectedMapStatusIntegrationId] = useState("");
+    const [integrationMappings, setIntegrationMappings] = useState<IntegrationMappingItem[]>([]);
+    const [mapStatusSaving, setMapStatusSaving] = useState(false);
+    const [mapStatusError, setMapStatusError] = useState("");
+    const [mapStatusSuccess, setMapStatusSuccess] = useState("");
+
+    async function loadIntegrationMappings() {
+        try {
+            const response = await fetch("/api/integration-mappings", {
+                method: "GET",
+                cache: "no-store",
+                credentials: "include",
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success || !Array.isArray(result.data)) {
+                setIntegrationMappings([]);
+                return;
+            }
+            setIntegrationMappings(result.data.map((item: any) => ({
+                id: String(item.id),
+                integrationId: String(item.integrationId),
+                orderStatusMapJson: String(item.orderStatusMapJson || ""),
+                deliveryTypeMapJson: String(item.deliveryTypeMapJson || ""),
+                warehouseMapJson: item.warehouseMapJson ?? null,
+                courierMapJson: item.courierMapJson ?? null,
+                mapStatusConfigJson: item.mapStatusConfigJson ?? null,
+            })));
+        } catch {
+            setIntegrationMappings([]);
+        }
+    }
+
+    async function handleSaveMapStatuses() {
+        try {
+            if (!selectedMapStatusIntegrationId) {
+                setMapStatusError("Сначала выбери интеграцию для статусов карты");
+                return;
+            }
+            const currentMapping = integrationMappings.find(
+                (item) => item.integrationId === selectedMapStatusIntegrationId
+            );
+            if (!currentMapping) {
+                setMapStatusError("Для выбранной интеграции нет mapping. Сначала создай integration mapping.");
+                return;
+            }
+            setMapStatusSaving(true);
+            setMapStatusError("");
+            setMapStatusSuccess("");
+            const response = await fetch("/api/integration-mappings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    integrationId: selectedMapStatusIntegrationId,
+                    orderStatusMapJson: currentMapping.orderStatusMapJson,
+                    deliveryTypeMapJson: currentMapping.deliveryTypeMapJson,
+                    warehouseMapJson: currentMapping.warehouseMapJson || "",
+                    courierMapJson: currentMapping.courierMapJson || "",
+                    mapStatusConfigJson: JSON.stringify(mapStatusRows),
+                }),
+            });
+            const result = await response.json();
+            if (response.status === 401) { router.replace("/login"); return; }
+            if (!response.ok || !result.success) {
+                throw new Error(result.message || "Не удалось сохранить статусы карты");
+            }
+            setMapStatusSuccess("Статусы карты успешно сохранены");
+            await loadIntegrationMappings();
+        } catch (err) {
+            setMapStatusError(err instanceof Error ? err.message : "Ошибка сохранения статусов карты");
+        } finally {
+            setMapStatusSaving(false);
+        }
+    }
+
+    async function handleUploadIcon(rowId: string, file: File | null) {
+        if (!file) return;
+        const formData = new FormData();
+        formData.append("file", file);
+        try {
+            const response = await fetch("/api/map-status-icons/upload", {
+                method: "POST",
+                body: formData,
+                credentials: "include",
+            });
+            const result = await response.json();
+            if (!response.ok || !result.success) {
+                alert(result.message || "Ошибка загрузки файла");
+                return;
+            }
+            setMapStatusRows((prev) =>
+                prev.map((item) => item.id === rowId ? { ...item, iconUrl: result.data.url } : item)
+            );
+        } catch {
+            alert("Ошибка загрузки файла");
+        }
+    }
+
     async function loadLoadUnits() {
         try {
             setLoading(true);
@@ -145,6 +300,7 @@ export default function FeaturesSettingsPage() {
         loadCourierCapacityRules();
         loadItemLoadMappings();
         loadIntegrations();
+        loadIntegrationMappings();
     }, []);
 
     useEffect(() => {
@@ -152,6 +308,31 @@ export default function FeaturesSettingsPage() {
             setSelectedLoadUnitId(loadUnits[0].id);
         }
     }, [loadUnits, selectedLoadUnitId]);
+
+    // Установить дефолтную интеграцию для статусов карты
+    useEffect(() => {
+        if (integrations.length > 0 && !selectedMapStatusIntegrationId) {
+            const def = integrations.find((i) => i.isDefault) || integrations[0];
+            setSelectedMapStatusIntegrationId(def.id);
+        }
+    }, [integrations, selectedMapStatusIntegrationId]);
+
+    // Синхронизировать строки при смене интеграции
+    useEffect(() => {
+        if (!selectedMapStatusIntegrationId) return;
+        const mapping = integrationMappings.find(
+            (item) => item.integrationId === selectedMapStatusIntegrationId
+        );
+        if (!mapping?.mapStatusConfigJson) {
+            setMapStatusRows(cloneDefaultMapStatusRows());
+            return;
+        }
+        try {
+            setMapStatusRows(normalizeLoadedMapStatusRows(JSON.parse(mapping.mapStatusConfigJson)));
+        } catch {
+            setMapStatusRows(cloneDefaultMapStatusRows());
+        }
+    }, [selectedMapStatusIntegrationId, integrationMappings]);
 
     function resetForm() {
         setName("");
@@ -1814,6 +1995,204 @@ export default function FeaturesSettingsPage() {
                         </div>
                     )}
                 </div>
+            </section>
+
+            <section style={{ display: "grid", gap: "16px", marginTop: "32px" }}>
+                <div style={{ fontSize: "18px", fontWeight: 800, color: "#111827" }}>
+                    Настройки статусов карты
+                </div>
+                <div style={{ fontSize: "14px", color: "#4b5563", lineHeight: 1.6 }}>
+                    Сопоставь статусы интеграции с отображением на карте: этап системы, название, цвет, иконка и видимость.
+                </div>
+
+                <div style={{ display: "grid", gap: "8px" }}>
+                    <label style={{ fontSize: "14px", fontWeight: 700, color: "#111827" }}>
+                        Интеграция для статусов карты
+                    </label>
+                    <select
+                        value={selectedMapStatusIntegrationId}
+                        onChange={(e) => setSelectedMapStatusIntegrationId(e.target.value)}
+                        style={{
+                            height: "44px", borderRadius: "12px", border: "1px solid #d1d5db",
+                            padding: "0 14px", fontSize: "14px", color: "#111827",
+                            outline: "none", background: "#ffffff",
+                        }}
+                    >
+                        {integrations.length === 0 ? (
+                            <option value="">Нет доступных интеграций</option>
+                        ) : (
+                            integrations.map((item) => (
+                                <option key={item.id} value={item.id}>
+                                    {item.name} ({item.provider}){item.isDefault ? " — default" : ""}
+                                </option>
+                            ))
+                        )}
+                    </select>
+                </div>
+
+                {mapStatusError ? (
+                    <div style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c", borderRadius: "12px", padding: "12px", fontSize: "14px" }}>
+                        {mapStatusError}
+                    </div>
+                ) : null}
+
+                {mapStatusSuccess ? (
+                    <div style={{ border: "1px solid #bbf7d0", background: "#f0fdf4", color: "#166534", borderRadius: "12px", padding: "12px", fontSize: "14px" }}>
+                        {mapStatusSuccess}
+                    </div>
+                ) : null}
+
+                <div style={{ border: "1px solid #e5e7eb", borderRadius: "12px", background: "#ffffff", overflowX: "auto" }}>
+                    <div style={{ minWidth: "1280px" }}>
+                        <div style={{
+                            display: "grid",
+                            gridTemplateColumns: "150px 180px 190px 190px 340px 130px 110px",
+                            gap: "12px", padding: "12px 14px",
+                            borderBottom: "1px solid #e5e7eb", background: "#f8fafc",
+                            fontSize: "12px", fontWeight: 700, color: "#475569", alignItems: "center",
+                        }}>
+                            <div>Raw status</div>
+                            <div>Этап системы</div>
+                            <div>Название на карте</div>
+                            <div>Цвет</div>
+                            <div>Иконка</div>
+                            <div>Показывать</div>
+                            <div>Действие</div>
+                        </div>
+
+                        <div style={{ padding: "12px 14px", borderBottom: "1px solid #f1f5f9" }}>
+                            <button
+                                type="button"
+                                onClick={() => setMapStatusRows((prev) => [
+                                    ...prev,
+                                    { id: `status-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, rawStatus: "", internalStage: "", label: "", color: "#2563eb", iconUrl: "", isVisible: true },
+                                ])}
+                                style={{
+                                    height: "40px", width: "fit-content", padding: "0 14px",
+                                    borderRadius: "10px", border: "1px solid #cbd5e1",
+                                    background: "#ffffff", color: "#1d4ed8",
+                                    fontSize: "14px", fontWeight: 700, cursor: "pointer",
+                                }}
+                            >
+                                + Добавить статус
+                            </button>
+                        </div>
+
+                        {mapStatusRows.map((row) => (
+                            <div
+                                key={row.id}
+                                style={{
+                                    display: "grid",
+                                    gridTemplateColumns: "150px 180px 190px 190px 340px 130px 110px",
+                                    gap: "12px", padding: "14px",
+                                    borderBottom: "1px solid #f1f5f9",
+                                    alignItems: "center", fontSize: "14px", color: "#111827",
+                                }}
+                            >
+                                <input
+                                    type="text"
+                                    value={row.rawStatus}
+                                    onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, rawStatus: e.target.value } : item))}
+                                    placeholder="new"
+                                    style={{ height: "38px", borderRadius: "10px", border: "1px solid #d1d5db", padding: "0 12px", fontSize: "14px", outline: "none", background: "#ffffff", width: "100%", boxSizing: "border-box" }}
+                                />
+                                <select
+                                    value={row.internalStage}
+                                    onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, internalStage: e.target.value } : item))}
+                                    style={{ height: "38px", borderRadius: "10px", border: "1px solid #d1d5db", padding: "0 12px", fontSize: "14px", outline: "none", background: "#ffffff", width: "100%", boxSizing: "border-box" }}
+                                >
+                                    <option value="">Не выбран</option>
+                                    {INTERNAL_STAGE_OPTIONS.map((opt) => (
+                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                    ))}
+                                </select>
+                                <input
+                                    type="text"
+                                    value={row.label}
+                                    onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, label: e.target.value } : item))}
+                                    placeholder="Название"
+                                    style={{ height: "38px", borderRadius: "10px", border: "1px solid #d1d5db", padding: "0 12px", fontSize: "14px", outline: "none", background: "#ffffff", width: "100%", boxSizing: "border-box" }}
+                                />
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                                    <input
+                                        type="color"
+                                        value={row.color}
+                                        onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, color: e.target.value } : item))}
+                                        style={{ width: "42px", height: "38px", border: "1px solid #d1d5db", borderRadius: "8px", padding: "2px", background: "#ffffff", cursor: "pointer", flexShrink: 0 }}
+                                    />
+                                    <input
+                                        type="text"
+                                        value={row.color}
+                                        onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, color: e.target.value } : item))}
+                                        placeholder="#2563eb"
+                                        style={{ height: "38px", borderRadius: "10px", border: "1px solid #d1d5db", padding: "0 12px", fontSize: "14px", outline: "none", background: "#ffffff", width: "100%", boxSizing: "border-box", minWidth: 0 }}
+                                    />
+                                </div>
+                                <div style={{ display: "grid", gap: "8px", minWidth: 0 }}>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                        <label style={{ height: "36px", padding: "0 12px", borderRadius: "10px", border: "1px solid #cbd5e1", background: "#ffffff", color: "#1d4ed8", fontSize: "13px", fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap" }}>
+                                            Загрузить
+                                            <input
+                                                type="file"
+                                                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                                                style={{ display: "none" }}
+                                                onChange={async (e) => {
+                                                    const file = e.target.files?.[0] || null;
+                                                    await handleUploadIcon(row.id, file);
+                                                    e.target.value = "";
+                                                }}
+                                            />
+                                        </label>
+                                        <div style={{ width: "36px", height: "36px", borderRadius: "10px", border: "1px solid #d1d5db", background: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
+                                            {row.iconUrl ? (
+                                                <img src={row.iconUrl} alt="" style={{ width: "20px", height: "20px", objectFit: "contain" }} />
+                                            ) : (
+                                                <span style={{ fontSize: "12px", color: "#9ca3af", fontWeight: 700 }}>—</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <input
+                                        type="text"
+                                        value={row.iconUrl}
+                                        onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, iconUrl: e.target.value } : item))}
+                                        placeholder="/uploads/map-status-icons/icon.svg"
+                                        style={{ height: "38px", borderRadius: "10px", border: "1px solid #d1d5db", padding: "0 12px", fontSize: "14px", outline: "none", background: "#ffffff", width: "100%", boxSizing: "border-box", minWidth: 0 }}
+                                    />
+                                </div>
+                                <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "#111827", cursor: "pointer" }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={row.isVisible}
+                                        onChange={(e) => setMapStatusRows((prev) => prev.map((item) => item.id === row.id ? { ...item, isVisible: e.target.checked } : item))}
+                                    />
+                                    <span>{row.isVisible ? "Да" : "Нет"}</span>
+                                </label>
+                                <button
+                                    type="button"
+                                    onClick={() => setMapStatusRows((prev) => prev.filter((item) => item.id !== row.id))}
+                                    style={{ height: "38px", borderRadius: "10px", border: "1px solid #fecaca", background: "#fef2f2", color: "#b91c1c", fontSize: "13px", fontWeight: 700, cursor: "pointer" }}
+                                >
+                                    Удалить
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={handleSaveMapStatuses}
+                    disabled={mapStatusSaving || !selectedMapStatusIntegrationId}
+                    style={{
+                        height: "44px", borderRadius: "12px", border: "none",
+                        background: mapStatusSaving || !selectedMapStatusIntegrationId ? "#9ca3af" : "#2563eb",
+                        color: "#ffffff", fontSize: "14px", fontWeight: 700,
+                        cursor: mapStatusSaving || !selectedMapStatusIntegrationId ? "not-allowed" : "pointer",
+                        width: "fit-content", padding: "0 16px",
+                    }}
+                >
+                    {mapStatusSaving ? "Сохранение..." : "Сохранить статусы карты"}
+                </button>
             </section>
         </main>
     );

@@ -1,8 +1,3 @@
-// ВАЖНО: я не трогаю твою геокодинг-логику и всё остальное
-// Я добавляю только работу с zoneId из БД
-
-// --- ВСТАВЬ ВЕСЬ ФАЙЛ ЦЕЛИКОМ ---
-
 import { NextRequest, NextResponse } from "next/server";
 import { requireSession } from "@/server/auth/require-session";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +5,7 @@ import { decrypt } from "@/server/lib/crypto";
 import { fetchRetailCrmOrders } from "@/server/integrations/providers/retailcrm.client";
 import { geocodeAddressWithNominatim } from "@/server/geocoding/nominatim";
 
+const geocodeCache = new Map<string, [number, number] | null>();
 
 type RetailCrmOrder = {
   id?: number;
@@ -45,225 +41,382 @@ type RetailCrmOrder = {
   };
 };
 
-const geocodeCache = new Map<string, [number, number] | null>();
-
-// ===== ДОБАВИЛИ ТИП =====
-type ParsedDeliveryZone = {
-  id: string;
-  name: string;
-  color: string;
-  priority: number;
-  price: number | null;
-  polygon: [number, number][];
+type MapStatusConfigItem = {
+  rawStatus: string;
+  internalStage?: string;
+  label?: string;
+  color?: string;
+  iconUrl?: string;
+  isVisible?: boolean;
 };
 
-// ===== POINT IN POLYGON =====
-function isPointInPolygon(point: [number, number], polygon: [number, number][]) {
-  const x = point[1];
-  const y = point[0];
-
-  let inside = false;
-
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const xi = polygon[i][1];
-    const yi = polygon[i][0];
-    const xj = polygon[j][1];
-    const yj = polygon[j][0];
-
-    const intersect =
-      yi > y !== yj > y &&
-      x < ((xj - xi) * (y - yi)) / ((yj - yi) || 1e-10) + xi;
-
-    if (intersect) inside = !inside;
-  }
-
-  return inside;
+function normalizeAddressKey(input: string) {
+  return input
+    .toLowerCase()
+    .replace(/улица/g, "ул")
+    .replace(/проспект/g, "пр-т")
+    .replace(/проезд/g, "пр-д")
+    .replace(/переулок/g, "пер")
+    .replace(/дом/g, "д")
+    .replace(/корпус/g, "корп")
+    .replace(/подъезд/g, "под")
+    .replace(/,/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function findZone(
+function mapRetailCrmOrderToMapOrder(
+  order: RetailCrmOrder,
   coordinates: [number, number] | null,
-  zones: ParsedDeliveryZone[]
+  mapStatusConfig: MapStatusConfigItem[]
 ) {
-  if (!coordinates) return null;
+  const title = order.number?.trim()
+    ? `Заказ #${order.number}`
+    : order.id
+      ? `Заказ #${order.id}`
+      : "Заказ без номера";
 
-  for (const zone of zones) {
-    if (isPointInPolygon(coordinates, zone.polygon)) {
-      return zone;
-    }
+  const textAddress =
+    order.delivery?.address?.text?.trim() ||
+    order.customer?.address?.text?.trim() ||
+    null;
+
+  const deliveryTypeCode =
+    order.delivery?.code ||
+    order.customFields?.recommended_delivery_method ||
+    "unknown";
+
+  let deliveryTypeName = "Не указан";
+
+  if (deliveryTypeCode === "courier") {
+    deliveryTypeName = "Курьер";
+  } else if (deliveryTypeCode === "pedestrian") {
+    deliveryTypeName = "Пеший курьер";
+  } else if (
+    deliveryTypeCode === "pickup" ||
+    deliveryTypeCode === "self-delivery"
+  ) {
+    deliveryTypeName = "Самовывоз";
+  } else if (deliveryTypeCode === "express-delivery") {
+    deliveryTypeName = "Срочная доставка";
+  } else if (deliveryTypeCode === "unknown") {
+    deliveryTypeName = "Не указан";
+  } else {
+    deliveryTypeName = deliveryTypeCode;
   }
 
-  return null;
-}
-
-// ===== ГЛАВНЫЙ МАППЕР =====
-function mapOrder(
-  order: any,
-  coordinates: [number, number] | null,
-  zones: ParsedDeliveryZone[],
-  storedZoneId: string | null
-) {
-  let zone =
-    (storedZoneId ? zones.find((z) => z.id === storedZoneId) : null) ||
-    findZone(coordinates, zones);
+  const matchedMapStatus = mapStatusConfig.find(
+    (item) => item.rawStatus === (order.status || "unknown")
+  );
 
   return {
-    id: order.id,
-    externalId: order.externalId,
+    id: order.id || 0,
+    title,
+    status: order.status || "unknown",
+    internalStage: matchedMapStatus?.internalStage || null,
+    textAddress,
+    deliveryTypeCode,
+    deliveryTypeName,
+    deliveryFrom: order.delivery?.time?.from || null,
+    deliveryTo: order.delivery?.time?.to || null,
+    courierId: null,
+    courierName: null,
     coordinates,
-
-    zoneId: zone?.id || null,
-    zoneName: zone?.name || null,
-    deliveryPrice: zone?.price ?? 0,
+    capacityPoints: 0,
+    createdAt: order.createdAt || null,
+    deliveryDate: order.delivery?.date || null,
   };
 }
 
-// ===== GET =====
+function buildFullGeocodingQueryAddress(order: RetailCrmOrder) {
+  const address = order.delivery?.address;
+
+  if (!address) {
+    return "";
+  }
+
+  const streetPart =
+    address.streetType && address.street
+      ? `${address.streetType} ${address.street}`
+      : address.street || null;
+
+  const buildingPart = address.building ? `д. ${address.building}` : null;
+  const housingPart = address.housing ? `корп. ${address.housing}` : null;
+
+  const entrancePart =
+    typeof address.block === "number"
+      ? `под. ${address.block}`
+      : address.block?.trim()
+        ? `под. ${address.block.trim()}`
+        : null;
+
+  return [
+    "Россия",
+    address.city?.trim() || "Москва",
+    streetPart?.trim() || null,
+    buildingPart,
+    housingPart,
+    entrancePart,
+    address.text?.trim() || null,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildEntranceFocusedGeocodingQueryAddress(order: RetailCrmOrder) {
+  const address = order.delivery?.address;
+
+  if (!address) {
+    return "";
+  }
+
+  const streetPart =
+    address.streetType && address.street
+      ? `${address.streetType} ${address.street}`
+      : address.street || null;
+
+  const buildingPart = address.building ? `д. ${address.building}` : null;
+  const housingPart = address.housing ? `корп. ${address.housing}` : null;
+
+  const entrancePart =
+    typeof address.block === "number"
+      ? `под. ${address.block}`
+      : address.block?.trim()
+        ? `под. ${address.block.trim()}`
+        : null;
+
+  return [
+    "Россия",
+    address.city?.trim() || "Москва",
+    streetPart?.trim() || null,
+    buildingPart,
+    housingPart,
+    entrancePart,
+  ]
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildFallbackGeocodingQueryAddress(order: RetailCrmOrder) {
+  const address = order.delivery?.address;
+
+  const city = address?.city?.trim() || "";
+  const streetType = address?.streetType?.trim() || "";
+  const street = address?.street?.trim() || "";
+  const building = address?.building?.trim() || "";
+  const housing = address?.housing?.trim() || "";
+
+  const structuredParts = [
+    city || "Москва",
+    [streetType, street].filter(Boolean).join(" ").trim(),
+    building ? `д. ${building}` : "",
+    housing ? `корп. ${housing}` : "",
+  ].filter(Boolean);
+
+  return structuredParts.join(", ");
+}
+
 export async function GET(request: NextRequest) {
   try {
     const session = await requireSession();
 
-    // 1. Интеграция
+    const { searchParams } = new URL(request.url);
+    const deliveryDate = searchParams.get("deliveryDate")?.trim() || null;
+
     const integration = await prisma.integration.findFirst({
       where: {
         companyId: session.companyId,
         isDefault: true,
         isActive: true,
       },
+      select: {
+        id: true,
+        name: true,
+        provider: true,
+        baseUrl: true,
+        credentialsEncryptedJson: true,
+        isDefault: true,
+      },
     });
 
     if (!integration) {
-      return NextResponse.json({ success: false });
+      return NextResponse.json(
+        { success: false, message: "No active default integration found" },
+        { status: 400 }
+      );
     }
 
-    const credentials = JSON.parse(
-      decrypt(integration.credentialsEncryptedJson)
-    );
+    if (integration.provider !== "retailcrm") {
+      return NextResponse.json(
+        { success: false, message: `Unsupported provider: ${integration.provider}` },
+        { status: 400 }
+      );
+    }
 
-    // 2. Зоны
-    const zonesRaw = await prisma.deliveryZone.findMany({
-      where: {
-        companyId: session.companyId,
-        isActive: true,
-      },
-      orderBy: { priority: "asc" },
-    });
+    if (!integration.baseUrl) {
+      return NextResponse.json(
+        { success: false, message: "Integration baseUrl is empty" },
+        { status: 400 }
+      );
+    }
 
-    const zones: ParsedDeliveryZone[] = zonesRaw
-      .map((z) => {
-        try {
-          const polygon = JSON.parse(z.polygonJson);
-          return {
-            id: z.id,
-            name: z.name,
-            color: z.color,
-            priority: z.priority,
-            price: z.price ? Number(z.price) : null,
-            polygon,
-          };
-        } catch {
-          return null;
-        }
-      })
-      .filter(Boolean) as ParsedDeliveryZone[];
-
-    // 3. Заказы из CRM
-    const result = await fetchRetailCrmOrders({
-      baseUrl: integration.baseUrl!,
-      credentials,
-      page: 1,
-      limit: 100,
-    });
-
-    // ===== ЗАГРУЖАЕМ ЗОНЫ ИЗ БД =====
-    const externalIds = result.orders
-      .map((o: any) => String(o.externalId || ""))
-      .filter(Boolean);
-
-    const dbOrders = await prisma.order.findMany({
+    const integrationMapping = await prisma.integrationMapping.findFirst({
       where: {
         companyId: session.companyId,
         integrationId: integration.id,
-        externalId: { in: externalIds },
       },
       select: {
-        externalId: true,
-        zoneId: true,
-        latitude: true,
-        longitude: true,
+        mapStatusConfigJson: true,
       },
     });
 
-    const orderStateMap = new Map(
-      dbOrders.map((o) => [
-        o.externalId,
-        {
-          zoneId: o.zoneId,
-          coordinates:
-            o.latitude !== null && o.longitude !== null
-              ? [o.latitude, o.longitude] as [number, number]
-              : null,
-        },
-      ])
-    );
+    let mapStatusConfig: MapStatusConfigItem[] = [];
 
-    // ===== МАППИНГ =====
-    const mapped = [];
-
-    for (const order of result.orders as RetailCrmOrder[]) {
-      const storedOrderState = orderStateMap.get(String(order.externalId)) || null;
-      const storedZoneId = storedOrderState?.zoneId || null;
-
-      let coordinates: [number, number] | null =
-        storedOrderState?.coordinates || null;
-
-      if (!coordinates && !storedZoneId && order.delivery?.address?.text) {
-        const geo = await geocodeAddressWithNominatim(
-          order.delivery.address.text
-        );
-
-        if (geo) {
-          coordinates = [geo.lat, geo.lon];
+    if (integrationMapping?.mapStatusConfigJson) {
+      try {
+        const parsed = JSON.parse(integrationMapping.mapStatusConfigJson);
+        if (Array.isArray(parsed)) {
+          mapStatusConfig = parsed;
         }
+      } catch (error) {
+        console.error("Failed to parse mapStatusConfigJson:", error);
       }
+    }
 
-      const mappedOrder = mapOrder(
-        order,
-        coordinates,
-        zones,
-        storedZoneId
+    const credentialsRaw = decrypt(integration.credentialsEncryptedJson);
+    const credentials = JSON.parse(credentialsRaw) as {
+      apiKey?: string;
+      site?: string;
+    };
+
+    const result = await fetchRetailCrmOrders({
+      baseUrl: integration.baseUrl,
+      credentials: {
+        apiKey: credentials.apiKey || "",
+        site: credentials.site,
+      },
+      page: 1,
+      limit: 100,
+      deliveryDateFrom: deliveryDate || undefined,
+      deliveryDateTo: deliveryDate || undefined,
+    });
+
+    const BATCH_SIZE = 5;
+    const mappedOrders: ReturnType<typeof mapRetailCrmOrderToMapOrder>[] = [];
+
+    for (let start = 0; start < result.orders.length; start += BATCH_SIZE) {
+      const batch = result.orders.slice(start, start + BATCH_SIZE) as RetailCrmOrder[];
+
+      const batchResults = await Promise.all(
+        batch.map(async (order) => {
+          const textAddress =
+            order.delivery?.address?.text?.trim() ||
+            order.customer?.address?.text?.trim() ||
+            "";
+
+          let coordinates: [number, number] | null = null;
+
+          if (textAddress) {
+            try {
+              const fullAddress = buildFullGeocodingQueryAddress(order);
+              const entranceFocusedAddress = buildEntranceFocusedGeocodingQueryAddress(order);
+              const fallbackAddress = buildFallbackGeocodingQueryAddress(order);
+
+              const rawKey = fallbackAddress || textAddress;
+              const cacheKey = rawKey ? normalizeAddressKey(rawKey) : null;
+
+              if (cacheKey) {
+                const dbCache = await prisma.geocodeCache.findUnique({
+                  where: { addressKey: cacheKey },
+                });
+
+                if (dbCache) {
+                  coordinates =
+                    dbCache.lat !== null && dbCache.lon !== null
+                      ? [dbCache.lat, dbCache.lon]
+                      : null;
+                } else if (geocodeCache.has(cacheKey)) {
+                  coordinates = geocodeCache.get(cacheKey) || null;
+                } else {
+                  const geocodeResult = await geocodeAddressWithNominatim(
+                    fullAddress,
+                    entranceFocusedAddress,
+                    fallbackAddress
+                  );
+
+                  if (geocodeResult) {
+                    coordinates = [geocodeResult.lat, geocodeResult.lon];
+                    geocodeCache.set(cacheKey, coordinates);
+
+                    await prisma.geocodeCache.upsert({
+                      where: { addressKey: cacheKey },
+                      update: {
+                        lat: geocodeResult.lat,
+                        lon: geocodeResult.lon,
+                        displayName: geocodeResult.displayName,
+                        kind: geocodeResult.kind,
+                        precision: geocodeResult.precision,
+                      },
+                      create: {
+                        addressKey: cacheKey,
+                        lat: geocodeResult.lat,
+                        lon: geocodeResult.lon,
+                        displayName: geocodeResult.displayName,
+                        kind: geocodeResult.kind,
+                        precision: geocodeResult.precision,
+                      },
+                    });
+                  } else {
+                    geocodeCache.set(cacheKey, null);
+
+                    await prisma.geocodeCache.upsert({
+                      where: { addressKey: cacheKey },
+                      update: { lat: null, lon: null, displayName: null, kind: null, precision: null },
+                      create: { addressKey: cacheKey, lat: null, lon: null, displayName: null, kind: null, precision: null },
+                    });
+                  }
+                }
+              }
+            } catch (error) {
+              console.error("Geocoding failed for address:", textAddress, error);
+            }
+          }
+
+          return mapRetailCrmOrderToMapOrder(order, coordinates, mapStatusConfig);
+        })
       );
 
-      // ===== СОХРАНЯЕМ В БД =====
-      if (
-        coordinates &&
-        (
-          !storedZoneId ||
-          !storedOrderState?.coordinates
-        )
-      ) {
-        await prisma.order.updateMany({
-          where: {
-            companyId: session.companyId,
-            integrationId: integration.id,
-            externalId: String(order.externalId),
-          },
-          data: {
-            zoneId: mappedOrder.zoneId,
-            latitude: coordinates[0],
-            longitude: coordinates[1],
-          },
-        });
-      }
-
-      mapped.push(mappedOrder);
+      mappedOrders.push(...batchResults);
     }
 
     return NextResponse.json({
       success: true,
-      orders: mapped,
+      orders: mappedOrders,
+      meta: {
+        integration: {
+          id: integration.id,
+          name: integration.name,
+          provider: integration.provider,
+          baseUrl: integration.baseUrl,
+          isDefault: integration.isDefault,
+        },
+        count: mappedOrders.length,
+        requestedDeliveryDate: deliveryDate,
+        pagination: result.pagination,
+        mapStatusConfig,
+      },
     });
-  } catch (e) {
-    console.error(e);
-    return NextResponse.json({ success: false }, { status: 500 });
+  } catch (error) {
+    console.error("Map orders error:", error);
+
+    const message =
+      error instanceof Error ? error.message : "Failed to load map orders";
+
+    const status = message === "Not authenticated" ? 401 : 500;
+
+    return NextResponse.json(
+      { success: false, message },
+      { status }
+    );
   }
 }

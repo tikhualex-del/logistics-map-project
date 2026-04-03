@@ -1,8 +1,24 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUserBySessionToken } from "@/server/auth/auth.service";
+import { isAdminEmail } from "@/server/admin/admin-access";
 
 export async function GET() {
   try {
+    const cookieStore = await cookies();
+    const sessionToken = cookieStore.get("session_token")?.value;
+
+    if (!sessionToken) {
+      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    }
+
+    const current = await getCurrentUserBySessionToken(sessionToken);
+
+    if (!isAdminEmail(current.user.email)) {
+      return NextResponse.json({ success: false, message: "Forbidden" }, { status: 403 });
+    }
+
     const users = await prisma.user.findMany({
       orderBy: {
         createdAt: "desc",

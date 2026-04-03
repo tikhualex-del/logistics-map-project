@@ -12,6 +12,7 @@ const navItems = [
   { href: "/settings", label: "Launch" },
   { href: "/settings/integrations", label: "Интеграции" },
   { href: "/settings/orders", label: "Заказы" },
+  { href: "/couriers", label: "Курьеры" },
   { href: "/map", label: "Карта" },
 ];
 
